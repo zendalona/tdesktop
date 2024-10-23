@@ -1,3 +1,18 @@
+
+# Telegram Desktop should be accessible for visually impaired. 
+**See the issue**: https://github.com/telegramdesktop/tdesktop/issues/476#issuecomment-450670711 
+
+Telegram is widely adopted by visually impaired users for its chat capabilities; however, the desktop version lacks accessibility features. Unfortunately, the developers seem less inclined to address this issue, as the number of affected users is relatively low compared to other reported bugs.
+
+## To-Do: A pull request for the Telegram desktop addressing the following issues: 
+<br>1. Ensure that the screen reader announces all focused elements accurately. <br>2. Ensure consistent behavior for keys such as Tab, Shift-Tab, and Arrow keys. <br>3. Implement keyboard shortcuts for navigating between messages, pinning messages, playing and pausing voice messages, and other essential functions. 
+
+# Why we need Donation ?
+### Currently, we don't have a skilled C++ developer to handle this task, but we do have a dedicated team for product management, documentation, testing, and other essential functions. We're seeking a donation to help bring a qualified developer on board.
+<br><br><br>
+
+
+
 # [Telegram Desktop][telegram_desktop] – Official Messenger
 
 This is the complete source code and the build instructions for the official [Telegram][telegram] messenger desktop client, based on the [Telegram API][telegram_api] and the [MTProto][telegram_proto] secure protocol.
