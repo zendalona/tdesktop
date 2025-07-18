@@ -55,6 +55,7 @@ include(cmake/generate_target.cmake)
 include(cmake/nuget.cmake)
 include(cmake/validate_d3d_compiler.cmake)
 include(cmake/target_prepare_qrc.cmake)
+include_directories(/home/linux/Desktop/Tbuild1/range-v3/include)
 
 include(cmake/options.cmake)
 include(cmake/external/qt/package.cmake)
