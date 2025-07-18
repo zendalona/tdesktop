@@ -53,6 +53,7 @@ endif()
 
 set_target_properties(Telegram PROPERTIES AUTOMOC ON)
 
+
 target_link_libraries(Telegram
 PRIVATE
     tdesktop::lib_tgcalls_legacy
@@ -663,6 +664,10 @@ PRIVATE
     dialogs/ui/dialogs_topics_view.h
     dialogs/ui/dialogs_video_userpic.cpp
     dialogs/ui/dialogs_video_userpic.h
+    dialogs/dialogs_accessible_inner_widget.cpp
+    dialogs/dialogs_accessible_inner_widget.h
+    dialogs/dialogs_accessible_row.cpp
+    dialogs/dialogs_accessible_row.h
     dialogs/dialogs_entry.cpp
     dialogs/dialogs_entry.h
     dialogs/dialogs_indexed_list.cpp

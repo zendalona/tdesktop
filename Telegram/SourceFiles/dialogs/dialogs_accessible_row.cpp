@@ -1,0 +1,119 @@
+// dialogs_accessible_row.cpp
+#include "dialogs_accessible_row.h"
+#include "dialogs_row.h"
+#include "dialogs_entry.h"
+#include "dialogs_list.h"
+
+namespace Dialogs {
+
+    AccessibleRow::AccessibleRow(Row *row, int rowWidth, InnerWidget *parentWidget)
+    : _row(row), _width(rowWidth), _parentWidget(parentWidget) {}
+
+
+// QAccessibleInterface
+QObject *AccessibleRow::object() const { return nullptr; }
+bool AccessibleRow::isValid() const { return _row != nullptr; }
+QAccessibleInterface *AccessibleRow::child(int) const { return nullptr; }
+int AccessibleRow::childCount() const { return 0; }
+int AccessibleRow::indexOfChild(const QAccessibleInterface *) const { return -1; }
+QAccessibleInterface *AccessibleRow::parent() const {
+    return QAccessible::queryAccessibleInterface(_parentWidget);
+}
+
+QRect AccessibleRow::rect() const {
+    if (!_row || !_parentWidget) return {};
+
+    // Get the parent's top-left corner in global coordinates
+    QPoint globalTopLeft = _parentWidget->mapToGlobal(QPoint(0, _row->top()));
+
+    // Use the known width and height of the row
+    QSize size(_width, _row->height());
+
+    return QRect(globalTopLeft, size);
+}
+
+QAccessible::Role AccessibleRow::role() const { return QAccessible::ListItem; }
+
+QAccessible::State AccessibleRow::state() const {
+    QAccessible::State s;
+    s.focusable = true;
+    s.selectable = true;
+    s.selectable = true;
+    return s;
+}
+
+QString AccessibleRow::text(QAccessible::Text t) const {
+	if (t == QAccessible::Name && _row && _row->entry()) {
+		return _row->entry()->chatListName();
+	}
+}
+
+
+
+QAccessibleInterface *AccessibleRow::childAt(int, int) const { return nullptr; }
+
+void AccessibleRow::setText(QAccessible::Text, const QString &) {}
+
+void *AccessibleRow::interface_cast(QAccessible::InterfaceType t) {
+    if (t == QAccessible::TextInterface)
+        return static_cast<QAccessibleTextInterface *>(this);
+    return nullptr;
+}
+
+// QAccessibleTextInterface
+QString AccessibleRow::text(int startOffset, int endOffset) const {
+    const QString text = _accessibleText();
+    if (startOffset < 0 || endOffset > text.size() || startOffset >= endOffset) {
+        return QString();
+    }
+    return text.mid(startOffset, endOffset - startOffset);
+}
+
+int AccessibleRow::characterCount() const {
+    return _accessibleText().size();
+}
+
+QRect AccessibleRow::characterRect(int) const {
+    return QRect(); // Optional: return bounding rect per character
+}
+
+int AccessibleRow::offsetAtPoint(const QPoint &) const {
+    return 0;
+}
+
+void AccessibleRow::selection(int, int *start, int *end) const {
+    *start = *end = 0;
+}
+
+int AccessibleRow::selectionCount() const {
+    return 0;
+}
+
+void AccessibleRow::addSelection(int, int) {}
+void AccessibleRow::removeSelection(int) {}
+void AccessibleRow::setSelection(int, int, int) {}
+
+void AccessibleRow::scrollToSubstring(int, int) {}
+
+void AccessibleRow::setCursorPosition(int) {}
+int AccessibleRow::cursorPosition() const {
+    return 0;
+}
+
+QString AccessibleRow::attributes(int, int *startOffset, int *endOffset) const {
+    *startOffset = 0;
+    *endOffset = characterCount();
+    return "readonly:true";
+}
+
+Row *AccessibleRow::row() const {
+    return _row;
+}
+
+QString AccessibleRow::_accessibleText() const {
+    if (!_row || !_row->entry()) return {};
+    return _row->entry()->chatListName();
+    
+}
+
+} // namespace Dialogs

@@ -82,6 +82,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <QtWidgets/QApplication>
 
+#include <QtGui/QAccessible>
+#include <iostream>
+#include <QAccessibleWidget>
+#include <QAccessibleInterface>
+#include <QAccessible>
+#include <QAccessibleEvent>
+#include "dialogs/dialogs_accessible_inner_widget.h"
+
+
 namespace Dialogs {
 namespace {
 
@@ -226,6 +235,14 @@ int InnerWidget::FilterResult::bottom() const {
 	return top + row->height();
 }
 
+std::vector<Row*> InnerWidget::accessibleRows() const {
+    std::vector<Row*> result;
+    for (const auto &item : *_shownList) {
+        result.push_back(item.get());
+    }
+    return result;
+}
+
 InnerWidget::InnerWidget(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller,
@@ -242,6 +259,7 @@ InnerWidget::InnerWidget(
 	+ st::defaultDialogRow.padding.left())
 , _childListShown(std::move(childListShown)) {
 	setAttribute(Qt::WA_OpaquePaintEvent, true);
+	setFocusPolicy(Qt::StrongFocus);
 
 	style::PaletteChanged(
 	) | rpl::start_with_next([=] {
@@ -3901,6 +3919,20 @@ void InnerWidget::setState(WidgetState state) {
 	_state = state;
 }
 
+void InnerWidget::triggerAccessibilityEvent(const not_null<Row*> &selectedRow, int skip) {
+	if (!selectedRow || !_shownList) return;
+
+	const auto index = int(_shownList->cfind(selectedRow.get()) - _shownList->cbegin() - skip);
+	std::cout << "Accessibility event triggered at index: " << index << std::endl;
+
+	if (auto accParent = QAccessible::queryAccessibleInterface(this)) {
+		if (auto accChild = accParent->child(index)) {
+			QAccessibleEvent event(accChild, QAccessible::Focus);
+			QAccessible::updateAccessibility(&event);
+		}
+	}
+}
+
 void InnerWidget::selectSkip(int32 direction) {
 	clearMouseSelection();
 	if (_state == WidgetState::Default) {
@@ -3913,6 +3945,11 @@ void InnerWidget::selectSkip(int32 direction) {
 				_collapsedSelected = 0;
 			} else {
 				_selected = (_shownList->cbegin() + skip)->get();
+				if (_selected && _selected->entry()) {
+					QString name = _selected->entry()->chatListName();
+					// std::cout << "First item selected: " << name.toStdString() << std::endl;
+					triggerAccessibilityEvent(not_null<Row*>(_selected), skip);
+				}
 			}
 		} else {
 			auto cur = (_collapsedSelected >= 0)
@@ -3934,7 +3971,17 @@ void InnerWidget::selectSkip(int32 direction) {
 			} else {
 				_collapsedSelected = -1;
 				_selected = *(_shownList->cbegin() + skip + cur - _collapsedRows.size());
-			}
+
+				_accessibleFocusedRow = _selected;
+
+					
+				if (_selected && _selected->entry()) {
+					QString name = _selected->entry()->chatListName();
+					// std::cout << "Selected chat: " << name.toStdString() << std::endl;
+					triggerAccessibilityEvent(not_null<Row*>(_selected), skip);
+				}
+				
+			}			
 		}
 		scrollToDefaultSelected();
 	} else if (_state == WidgetState::Filtered) {

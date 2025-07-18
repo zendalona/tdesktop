@@ -16,6 +16,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/effects/animations.h"
 #include "ui/rp_widget.h"
 #include "ui/userpic_view.h"
+#include <QAccessibleTextInterface>
+#include <QAccessibleWidget>
+#include <QAccessibleInterface>
+#include <iostream>
 
 namespace style {
 struct DialogRow;
@@ -100,8 +104,11 @@ enum class WidgetState {
 };
 
 class InnerWidget final : public Ui::RpWidget {
+	Q_OBJECT
 public:
 	using ChatsFilterTagsKey = int64;
+
+    std::vector<Row*> accessibleRows() const;
 
 	struct ChildListShown {
 		PeerId peerId = 0;
@@ -203,6 +210,9 @@ public:
 
 	[[nodiscard]] rpl::producer<UserId> openBotMainAppRequests() const;
 
+	Row *focusedRow() const { return _accessibleFocusedRow; } // NEW
+	void triggerAccessibilityEvent(const not_null<Row*> &selectedRow, int skip);
+	
 protected:
 	void visibleTopBottomUpdated(
 		int visibleTop,
@@ -257,6 +267,8 @@ private:
 	Main::Session &session() const;
 
 	void dialogRowReplaced(Row *oldRow, Row *newRow);
+	Row *_accessibleFocusedRow = nullptr;  // NEW
+
 
 	void setState(WidgetState state);
 	void editOpenedFilter();
