@@ -3,6 +3,9 @@
 #include "dialogs_row.h"
 #include "dialogs_entry.h"
 #include "dialogs_list.h"
+#include "history/history.h"
+#include "history/history_item.h"
+#include "data/data_user.h"
 
 namespace Dialogs {
 
@@ -43,10 +46,94 @@ QAccessible::State AccessibleRow::state() const {
 }
 
 QString AccessibleRow::text(QAccessible::Text t) const {
-	if (t == QAccessible::Name && _row && _row->entry()) {
-		return _row->entry()->chatListName();
-	}
+    if (t == QAccessible::Name && _row && _row->entry()) {
+        const auto entry = _row->entry();
+        const auto name = entry->chatListName();
+        const auto item = entry->chatListMessage();
+
+        QString result;
+
+        // 1. Type (Chat type: Bot, Group, Channel, etc.)
+        if (const auto history = entry->asHistory()) {
+            if (const auto peer = history->peer) {
+                if (peer->isUser()) {
+                    const auto user = peer->asUser();
+                    if (user && user->isBot()) {
+                        result += "Bot. ";
+                    }
+                } else if (peer->isMegagroup()) {
+                    result += "Group. ";
+                } else if (peer->isBroadcast()) {
+                    result += "Channel. ";
+                }
+            }
+        }
+
+        // 2. Name (Contact or group name)
+        result += name;
+
+        // 3. Unread Message Count
+        if (const auto history = entry->asHistory()) {
+            const int unread = history->unreadCount();
+            if (unread > 0) {
+                result += QString(". You have %1 unread message%2")
+                          .arg(unread)
+                          .arg(unread > 1 ? "s" : "");
+            }
+        }
+
+        // 4. Muted or not
+        if (const auto history = entry->asHistory()) {
+            if (history->muted()) {
+                result += ". Muted.";
+            }
+        }
+
+        // 5. Sender name (if group, and not same as chat or self)
+        if (item) {
+            const auto from = item->from();
+            const auto fromName = (from && !from->name().isEmpty()) ? from->name() : QString();
+            const bool isFromMyself = from && from->isSelf();
+            const bool isSameAsChat = (fromName == name);
+
+            if (!isFromMyself && !isSameAsChat && !fromName.isEmpty()) {
+                result += " Message from " + fromName;
+            }
+
+            // 6. Last Message
+            const auto message = item->originalText().text;
+            if (!message.isEmpty()) {
+                result += ". " + message;
+            }
+
+            // 7. Received at Time (with formatting)
+            const auto timestamp = item->date();
+            QDateTime dt = QDateTime::fromSecsSinceEpoch(timestamp);
+            QDateTime now = QDateTime::currentDateTime();
+
+            const bool isToday = dt.date() == now.date();
+            const QString timeStr = dt.time().toString("h:mm AP");
+            const int day = dt.date().day();
+            const QString daySuffix = (day == 1 || day == 21 || day == 31) ? "st"
+                                    : (day == 2 || day == 22) ? "nd"
+                                    : (day == 3 || day == 23) ? "rd"
+                                    : "th";
+            const QString dateStr = QString::number(day) + daySuffix;
+            const QString monthStr = dt.date().toString("MMMM");
+
+            if (isToday) {
+                result += ". Received today at " + timeStr;
+            } else {
+                result += ". Received at " + timeStr + ", " + dateStr + " of " + monthStr;
+            }
+        }
+
+        return result;
+    }
+
+    return QString();
 }
+
 
 
 
