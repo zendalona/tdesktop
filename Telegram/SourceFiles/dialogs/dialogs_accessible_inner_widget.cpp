@@ -75,10 +75,20 @@ void AccessibleInnerWidget::setText(QAccessible::Text, const QString &) {
 }
 
 QString AccessibleInnerWidget::text(QAccessible::Text t) const {
-    if (t == QAccessible::Name) {
-        return QStringLiteral("Chat List");
-    }
-    return QString();
+	if (t != QAccessible::Name) {
+		return QString();
+	}
+
+	const auto *widget = static_cast<const InnerWidget*>(object());
+	if (!widget) {
+		return QString();
+	}
+	
+    if (widget->state() == WidgetState::Filtered) {
+		return QStringLiteral("Search Results");
+	}
+
+	return QStringLiteral("Chat List");
 }
 
 QAccessible::Role AccessibleInnerWidget::role() const {

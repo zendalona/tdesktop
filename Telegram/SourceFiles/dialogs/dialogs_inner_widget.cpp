@@ -237,9 +237,29 @@ int InnerWidget::FilterResult::bottom() const {
 
 std::vector<Row*> InnerWidget::accessibleRows() const {
     std::vector<Row*> result;
-    for (const auto &item : *_shownList) {
-        result.push_back(item.get());
+
+    if (_state == WidgetState::Default) {
+		
+        for (const auto &item : *_shownList) {
+            result.push_back(item.get());
+        }
+    } else if (_state == WidgetState::Filtered) {
+        for (const auto &item : _filterResults) {
+            result.push_back(item.row.get());
+        }
+        for (const auto &item : _searchResults) {
+            if (auto row = dynamic_cast<Row*>(item.get())) {
+                result.push_back(row);
+            }
+        }
+        for (const auto &item : _peerSearchResults) {
+            if (auto row = dynamic_cast<Row*>(&item->row)) {
+                result.push_back(row);
+            }
+        }
+        // Skip _hashtagResults and _previewResults entirely — they are BasicRow.
     }
+
     return result;
 }
 
@@ -3919,22 +3939,22 @@ void InnerWidget::setState(WidgetState state) {
 	_state = state;
 }
 
-void InnerWidget::triggerAccessibilityEvent(const not_null<Row*> &selectedRow, int skip) {
-	if (!selectedRow || !_shownList) return;
-
-	const auto index = int(_shownList->cfind(selectedRow.get()) - _shownList->cbegin() - skip);
+void InnerWidget::triggerAccessibilityEvent(int index) {
+    if (index < 0) {
+        return;
+    }
 	std::cout << "Accessibility event triggered at index: " << index << std::endl;
-
-	if (auto accParent = QAccessible::queryAccessibleInterface(this)) {
-		if (auto accChild = accParent->child(index)) {
-			QAccessibleEvent event(accChild, QAccessible::Focus);
-			QAccessible::updateAccessibility(&event);
-		}
-	}
+    if (auto accParent = QAccessible::queryAccessibleInterface(this)) {
+        if (auto accChild = accParent->child(index)) {
+            QAccessibleEvent event(accChild, QAccessible::Focus);
+            QAccessible::updateAccessibility(&event);
+        }
+    }
 }
 
 void InnerWidget::selectSkip(int32 direction) {
 	clearMouseSelection();
+	int accessibilityIndex = -1; // This will hold the final index for the accessibility event.
 	if (_state == WidgetState::Default) {
 		const auto skip = _skipTopDialog ? 1 : 0;
 		if (_collapsedRows.empty() && _shownList->size() <= skip) {
@@ -3943,13 +3963,9 @@ void InnerWidget::selectSkip(int32 direction) {
 		if (_collapsedSelected < 0 && !_selected) {
 			if (!_collapsedRows.empty()) {
 				_collapsedSelected = 0;
+				accessibilityIndex = _collapsedSelected; 
 			} else {
-				_selected = (_shownList->cbegin() + skip)->get();
-				if (_selected && _selected->entry()) {
-					QString name = _selected->entry()->chatListName();
-					// std::cout << "First item selected: " << name.toStdString() << std::endl;
-					triggerAccessibilityEvent(not_null<Row*>(_selected), skip);
-				}
+				_selected = (_shownList->cbegin() + skip)->get();									
 			}
 		} else {
 			auto cur = (_collapsedSelected >= 0)
@@ -3968,20 +3984,17 @@ void InnerWidget::selectSkip(int32 direction) {
 			if (cur < _collapsedRows.size()) {
 				_collapsedSelected = cur;
 				_selected = nullptr;
+				accessibilityIndex = _collapsedSelected;
 			} else {
 				_collapsedSelected = -1;
 				_selected = *(_shownList->cbegin() + skip + cur - _collapsedRows.size());
 
 				_accessibleFocusedRow = _selected;
 
-					
-				if (_selected && _selected->entry()) {
-					QString name = _selected->entry()->chatListName();
-					// std::cout << "Selected chat: " << name.toStdString() << std::endl;
-					triggerAccessibilityEvent(not_null<Row*>(_selected), skip);
-				}
-				
 			}			
+		}
+        if (_selected) {
+			accessibilityIndex = int(_shownList->cfind(_selected) - _shownList->cbegin());
 		}
 		scrollToDefaultSelected();
 	} else if (_state == WidgetState::Filtered) {
@@ -4043,6 +4056,17 @@ void InnerWidget::selectSkip(int32 direction) {
 				_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = -1;
 			}
 		}
+
+		if (base::in_range(_filteredSelected, 0, _filterResults.size())) {
+			accessibilityIndex = _filteredSelected;
+		} else if (base::in_range(_searchedSelected, 0, _searchResults.size())) { 
+			accessibilityIndex = _filterResults.size() + _searchedSelected;
+		} else if (base::in_range(_peerSearchSelected, 0, _peerSearchResults.size())) {
+			accessibilityIndex = _filterResults.size()
+				+ _searchResults.size()
+				+ _peerSearchSelected;
+		}
+
 		if (base::in_range(_hashtagSelected, 0, _hashtagResults.size())) {
 			const auto from = _hashtagSelected * st::mentionHeight;
 			scrollToItem(from, st::mentionHeight);
@@ -4073,6 +4097,7 @@ void InnerWidget::selectSkip(int32 direction) {
 			scrollToItem(from, height);
 		}
 	}
+	triggerAccessibilityEvent(accessibilityIndex);
 	update();
 }
 

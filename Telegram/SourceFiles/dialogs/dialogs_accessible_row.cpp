@@ -24,13 +24,14 @@ QAccessibleInterface *AccessibleRow::parent() const {
 }
 
 QRect AccessibleRow::rect() const {
-    if (!_row || !_parentWidget) return {};
+    if (!_row || !_parentWidget) {
+        return {};
+    }
 
-    // Get the parent's top-left corner in global coordinates
-    QPoint globalTopLeft = _parentWidget->mapToGlobal(QPoint(0, _row->top()));
+    const int y = _row->top();
 
-    // Use the known width and height of the row
-    QSize size(_width, _row->height());
+    const QPoint globalTopLeft = _parentWidget->mapToGlobal(QPoint(0, y));
+    const QSize size(_width, _row->height());
 
     return QRect(globalTopLeft, size);
 }
@@ -41,99 +42,122 @@ QAccessible::State AccessibleRow::state() const {
     QAccessible::State s;
     s.focusable = true;
     s.selectable = true;
-    s.selectable = true;
     return s;
 }
 
 QString AccessibleRow::text(QAccessible::Text t) const {
-    if (t == QAccessible::Name && _row && _row->entry()) {
-        const auto entry = _row->entry();
-        const auto name = entry->chatListName();
-        const auto item = entry->chatListMessage();
+	if (t != QAccessible::Name || !_row || !_row->entry()) {
+		return QString();
+	}
 
-        QString result;
+	
+	if (_parentWidget->state() == WidgetState::Filtered) {
+		
+		const QString baseName = _row->entry()->chatListName();
+		const auto *inner = qobject_cast<const InnerWidget*>(_parentWidget);
+		if (inner) {
+			const auto rows = inner->accessibleRows();
+			const auto it = std::find(rows.begin(), rows.end(), _row);
 
-        // 1. Type (Chat type: Bot, Group, Channel, etc.)
-        if (const auto history = entry->asHistory()) {
-            if (const auto peer = history->peer) {
-                if (peer->isUser()) {
-                    const auto user = peer->asUser();
-                    if (user && user->isBot()) {
-                        result += "Bot. ";
-                    }
-                } else if (peer->isMegagroup()) {
-                    result += "Group. ";
-                } else if (peer->isBroadcast()) {
-                    result += "Channel. ";
-                }
-            }
-        }
+			if (it != rows.end()) {
+				const int index = std::distance(rows.begin(), it);
+				const int total = rows.size();
+				return QString("Search Result %1 of %2: %3")
+					.arg(index + 1)
+					.arg(total)
+					.arg(baseName);
+			}
+		}
+		return "[Search Result] " + baseName; 
+	}
 
-        // 2. Name (Contact or group name)
-        result += name;
+	const auto entry = _row->entry();
+	const auto name = entry->chatListName();
+	const auto item = entry->chatListMessage();
+	QString result;
 
-        // 3. Unread Message Count
-        if (const auto history = entry->asHistory()) {
-            const int unread = history->unreadCount();
-            if (unread > 0) {
-                result += QString(". You have %1 unread message%2")
-                          .arg(unread)
-                          .arg(unread > 1 ? "s" : "");
-            }
-        }
+	// 1. Type (Chat type: Bot, Group, Channel, etc.)
+	if (const auto history = entry->asHistory()) {
+		if (const auto peer = history->peer) {
+			if (peer->isUser()) {
+				const auto user = peer->asUser();
+				if (user && user->isBot()) {
+					result += "Bot. ";
+				}
+			} else if (peer->isMegagroup()) {
+				result += "Group. ";
+			} else if (peer->isBroadcast()) {
+				result += "Channel. ";
+			}
+		}
+	}
 
-        // 4. Muted or not
-        if (const auto history = entry->asHistory()) {
-            if (history->muted()) {
-                result += ". Muted.";
-            }
-        }
+	// 2. Name (Contact or group name)
+	result += name;
 
-        // 5. Sender name (if group, and not same as chat or self)
-        if (item) {
-            const auto from = item->from();
-            const auto fromName = (from && !from->name().isEmpty()) ? from->name() : QString();
-            const bool isFromMyself = from && from->isSelf();
-            const bool isSameAsChat = (fromName == name);
+	// 3. Unread Message Count
+	if (const auto history = entry->asHistory()) {
+		const int unread = history->unreadCount();
+		if (unread > 0) {
+			result += QString(". You have %1 unread message%2")
+				.arg(unread)
+				.arg(unread > 1 ? "s" : "");
+		}
+	}
 
-            if (!isFromMyself && !isSameAsChat && !fromName.isEmpty()) {
-                result += " Message from " + fromName;
-            }
+	// 4. Muted or not
+	if (const auto history = entry->asHistory()) {
+		if (history->muted()) {
+			result += ". Muted.";
+		}
+	}
 
-            // 6. Last Message
-            const auto message = item->originalText().text;
-            if (!message.isEmpty()) {
-                result += ". " + message;
-            }
+	// 5. Sender name and Message Details
+	if (item) {
+		const auto from = item->from();
+		const auto fromName = (from && !from->name().isEmpty())
+			? from->name()
+			: QString();
+		const bool isFromMyself = from && from->isSelf();
+		const bool isSameAsChat = (fromName == name);
 
-            // 7. Received at Time (with formatting)
-            const auto timestamp = item->date();
-            QDateTime dt = QDateTime::fromSecsSinceEpoch(timestamp);
-            QDateTime now = QDateTime::currentDateTime();
+		if (!isFromMyself && !isSameAsChat && !fromName.isEmpty()) {
+			result += ". Message from " + fromName;
+		}
 
-            const bool isToday = dt.date() == now.date();
-            const QString timeStr = dt.time().toString("h:mm AP");
-            const int day = dt.date().day();
-            const QString daySuffix = (day == 1 || day == 21 || day == 31) ? "st"
-                                    : (day == 2 || day == 22) ? "nd"
-                                    : (day == 3 || day == 23) ? "rd"
-                                    : "th";
-            const QString dateStr = QString::number(day) + daySuffix;
-            const QString monthStr = dt.date().toString("MMMM");
+		// 6. Last Message
+		const auto message = item->originalText().text;
+		if (!message.isEmpty()) {
+			result += ". " + message;
+		}
 
-            if (isToday) {
-                result += ". Received today at " + timeStr;
-            } else {
-                result += ". Received at " + timeStr + ", " + dateStr + " of " + monthStr;
-            }
-        }
+		// 7. Received at Time (with formatting)
+		const auto timestamp = item->date();
+		QDateTime dt = QDateTime::fromSecsSinceEpoch(timestamp);
+		QDateTime now = QDateTime::currentDateTime();
 
-        return result;
-    }
+		const bool isToday = dt.date() == now.date();
+		const QString timeStr = dt.time().toString("h:mm AP");
+		const int day = dt.date().day();
+		const QString daySuffix = (day == 1 || day == 21 || day == 31) ? "st"
+			: (day == 2 || day == 22) ? "nd"
+			: (day == 3 || day == 23) ? "rd"
+			: "th";
+		const QString dateStr = QString::number(day) + daySuffix;
+		const QString monthStr = dt.date().toString("MMMM");
 
-    return QString();
+		if (isToday) {
+			result += ". Received today at " + timeStr;
+		} else {
+			result += ". Received at "
+				+ timeStr + ", "
+				+ dateStr + " of "
+				+ monthStr;
+		}
+	}
+
+	return result;
 }
-
 
 
 

@@ -211,7 +211,7 @@ public:
 	[[nodiscard]] rpl::producer<UserId> openBotMainAppRequests() const;
 
 	Row *focusedRow() const { return _accessibleFocusedRow; } // NEW
-	void triggerAccessibilityEvent(const not_null<Row*> &selectedRow, int skip);
+	void triggerAccessibilityEvent(int index);
 	
 protected:
 	void visibleTopBottomUpdated(
