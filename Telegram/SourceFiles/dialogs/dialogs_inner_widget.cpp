@@ -4165,6 +4165,13 @@ void InnerWidget::selectSkipPage(int32 pixels, int32 direction) {
 			_selected = nullptr;
 		}
 	}
+	int accessibilityIndex = -1;
+    if (_collapsedSelected >= 0) {
+        accessibilityIndex = _collapsedSelected;
+    } else if (_selected) {
+        accessibilityIndex = int(_shownList->cfind(_selected) - _shownList->cbegin());
+    }
+    triggerAccessibilityEvent(accessibilityIndex);
 	scrollToDefaultSelected();
 	update();
 }
