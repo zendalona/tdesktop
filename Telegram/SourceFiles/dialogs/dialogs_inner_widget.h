@@ -20,6 +20,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QAccessibleWidget>
 #include <QAccessibleInterface>
 #include <iostream>
+#include "dialogs/dialogs_row.h" 
+#include "ui/unread_badge.h"    
+#include "data/data_peer.h"     
 
 namespace style {
 struct DialogRow;
@@ -109,7 +112,9 @@ public:
 	using ChatsFilterTagsKey = int64;
 
     std::vector<Row*> accessibleRows() const;
-
+	std::vector<FakeRow*> accessibleFakeRows() const;
+	std::vector<BasicRow*> accessibleBasicRows() const;
+	
 	struct ChildListShown {
 		PeerId peerId = 0;
 		float64 shown = 0.;
@@ -229,8 +234,8 @@ protected:
 
 private:
 	struct CollapsedRow;
-	struct HashtagResult;
-	struct PeerSearchResult;
+	// struct HashtagResult;
+	// struct PeerSearchResult;
 
 	enum class JumpSkip {
 		PreviousOrBegin,
@@ -251,6 +256,21 @@ private:
 	struct PinnedRow {
 		anim::value yadd;
 		crl::time animStartTime = 0;
+	};
+
+	
+	struct HashtagResult {
+		HashtagResult(const QString &tag);
+		QString tag;
+		BasicRow row;
+	};
+	
+	struct PeerSearchResult {
+		explicit PeerSearchResult(not_null<PeerData*> peer);
+		not_null<PeerData*> peer;
+		mutable Ui::Text::String name;
+		mutable Ui::PeerBadge badge;
+		BasicRow row;
 	};
 
 	struct FilterResult {
@@ -376,19 +396,19 @@ private:
 	void refreshShownList();
 	[[nodiscard]] int skipTopHeight() const;
 	[[nodiscard]] int collapsedRowsOffset() const;
-	[[nodiscard]] int dialogsOffset() const;
+	// [[nodiscard]] int dialogsOffset() const;
 	[[nodiscard]] int shownHeight(int till = -1) const;
 	[[nodiscard]] int fixedOnTopCount() const;
 	[[nodiscard]] int pinnedOffset() const;
-	[[nodiscard]] int filteredOffset() const;
+	// [[nodiscard]] int filteredOffset() const;
 	[[nodiscard]] int filteredIndex(int y) const;
 	[[nodiscard]] int filteredHeight(int till = -1) const;
-	[[nodiscard]] int peerSearchOffset() const;
+	// [[nodiscard]] int peerSearchOffset() const;
 	[[nodiscard]] int searchInChatOffset() const;
-	[[nodiscard]] int previewOffset() const;
-	[[nodiscard]] int searchedOffset() const;
+	// [[nodiscard]] int previewOffset() const;
+	// [[nodiscard]] int searchedOffset() const;
 	[[nodiscard]] int searchInChatSkip() const;
-	[[nodiscard]] int hashtagsOffset() const;
+	// [[nodiscard]] int hashtagsOffset() const;
 
 	void paintCollapsedRows(
 		Painter &p,
@@ -627,6 +647,38 @@ private:
 	bool _searchWaiting = false;
 
 	base::unique_qptr<Ui::PopupMenu> _menu;
+
+public:
+		// ADD ALL OF THESE GETTER FUNCTIONS:
+		const std::vector<std::unique_ptr<HashtagResult>> &hashtagResults() const {
+			return _hashtagResults;
+		}
+		const std::vector<FilterResult> &filterResults() const {
+			return _filterResults;
+		}
+		const std::vector<std::unique_ptr<PeerSearchResult>> &peerSearchResults() const {
+			return _peerSearchResults;
+		}
+		const std::vector<std::unique_ptr<FakeRow>> &previewResults() const {
+			return _previewResults;
+		}
+		const std::vector<std::unique_ptr<FakeRow>> &searchResults() const {
+			return _searchResults;
+		}
+		const std::vector<std::unique_ptr<CollapsedRow>> &collapsedRows() const {
+			return _collapsedRows;
+		}
+		not_null<IndexedList*> shownList() const {
+			return _shownList;
+		}
+	
+		// --- Offset Function Declarations ---
+		[[nodiscard]] int dialogsOffset() const;
+		[[nodiscard]] int hashtagsOffset() const;
+		[[nodiscard]] int filteredOffset() const;
+		[[nodiscard]] int peerSearchOffset() const;
+		[[nodiscard]] int previewOffset() const;
+		[[nodiscard]] int searchedOffset() const;
 
 };
 

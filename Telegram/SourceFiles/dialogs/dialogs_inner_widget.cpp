@@ -211,21 +211,13 @@ struct InnerWidget::CollapsedRow {
 	BasicRow row;
 };
 
-struct InnerWidget::HashtagResult {
-	HashtagResult(const QString &tag) : tag(tag) {
-	}
-	QString tag;
-	BasicRow row;
-};
+InnerWidget::HashtagResult::HashtagResult(const QString &tag) : tag(tag) {
+}
 
-struct InnerWidget::PeerSearchResult {
-	explicit PeerSearchResult(not_null<PeerData*> peer) : peer(peer) {
-	}
-	not_null<PeerData*> peer;
-	mutable Ui::Text::String name;
-	mutable Ui::PeerBadge badge;
-	BasicRow row;
-};
+InnerWidget::PeerSearchResult::PeerSearchResult(
+    not_null<PeerData*> peer)
+: peer(peer) {
+}
 
 Key InnerWidget::FilterResult::key() const {
 	return row->key();
@@ -246,21 +238,46 @@ std::vector<Row*> InnerWidget::accessibleRows() const {
     } else if (_state == WidgetState::Filtered) {
         for (const auto &item : _filterResults) {
             result.push_back(item.row.get());
-        }
-        for (const auto &item : _searchResults) {
-            if (auto row = dynamic_cast<Row*>(item.get())) {
-                result.push_back(row);
-            }
-        }
-        for (const auto &item : _peerSearchResults) {
-            if (auto row = dynamic_cast<Row*>(&item->row)) {
-                result.push_back(row);
-            }
-        }
-        // Skip _hashtagResults and _previewResults entirely — they are BasicRow.
+        }     
     }
 
     return result;
+}
+
+std::vector<FakeRow*> InnerWidget::accessibleFakeRows() const {
+    std::vector<FakeRow*> result;
+
+    if (_state == WidgetState::Filtered) {
+        for (const auto &item : _searchResults) {
+            if (auto row = dynamic_cast<FakeRow*>(item.get())) {
+                result.push_back(row);
+            }
+        }
+
+        for (const auto &item : _previewResults) {
+            if (auto row = dynamic_cast<FakeRow*>(item.get())) {
+                result.push_back(row);
+            }
+        }
+    }
+
+    return result;
+}
+
+std::vector<BasicRow*> InnerWidget::accessibleBasicRows() const {
+	std::vector<BasicRow*> result;
+
+	if (_state == WidgetState::Filtered) {
+		for (const auto &item : _hashtagResults) {
+			result.push_back(&item->row);
+		}
+
+		for (const auto &item : _peerSearchResults) {
+			result.push_back(&item->row);
+		}
+	}
+
+	return result;
 }
 
 InnerWidget::InnerWidget(
@@ -4056,16 +4073,29 @@ void InnerWidget::selectSkip(int32 direction) {
 				_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = -1;
 			}
 		}
-
-		if (base::in_range(_filteredSelected, 0, _filterResults.size())) {
-			accessibilityIndex = _filteredSelected;
-		} else if (base::in_range(_searchedSelected, 0, _searchResults.size())) { 
-			accessibilityIndex = _filterResults.size() + _searchedSelected;
+ 
+		// accessibility index of the selected item		
+		if (base::in_range(_hashtagSelected, 0, _hashtagResults.size())) {
+			accessibilityIndex = _hashtagSelected;
+		} else if (base::in_range(_filteredSelected, 0, _filterResults.size())) {
+			accessibilityIndex = _hashtagResults.size() + _filteredSelected;
 		} else if (base::in_range(_peerSearchSelected, 0, _peerSearchResults.size())) {
-			accessibilityIndex = _filterResults.size()
-				+ _searchResults.size()
+			accessibilityIndex = _hashtagResults.size()
+				+ _filterResults.size()
 				+ _peerSearchSelected;
+		} else if (base::in_range(_previewSelected, 0, _previewResults.size())) {
+			accessibilityIndex = _hashtagResults.size()
+				+ _filterResults.size()
+				+ _peerSearchResults.size()
+				+ _previewSelected;
+		} else if (base::in_range(_searchedSelected, 0, _searchResults.size())) {
+			accessibilityIndex = _hashtagResults.size()
+				+ _filterResults.size()
+				+ _peerSearchResults.size()
+				+ _previewResults.size()
+				+ _searchedSelected;
 		}
+		
 
 		if (base::in_range(_hashtagSelected, 0, _hashtagResults.size())) {
 			const auto from = _hashtagSelected * st::mentionHeight;
