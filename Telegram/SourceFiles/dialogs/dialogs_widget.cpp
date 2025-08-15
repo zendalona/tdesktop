@@ -87,6 +87,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtGui/QTextBlock>
 #include <QtWidgets/QScrollBar>
 #include <QtWidgets/QTextEdit>
+#include <QTimer>
+#include <QAccessible>
+#include <QAccessibleEvent>
 
 namespace Dialogs {
 namespace {
@@ -663,6 +666,9 @@ Widget::Widget(
 			|| !controller->enoughSpaceForFilters())) {
 		toggleFiltersMenu(true);
 	}
+	if (_inner->state()== WidgetState::Default) {
+		setAccessibleName("ChatsList");
+	}	
 }
 
 void Widget::chosenRow(const ChosenRow &row) {
@@ -1370,6 +1376,18 @@ bool Widget::cancelSearchByMouseBack() {
 
 void Widget::processSearchFocusChange() {
 	_searchSuggestionsLocked = _suggestions && _suggestions->persist();
+    
+		if (_searchHasFocus) {
+			QTimer::singleShot(0, this, [=] {	
+				if (_search) { // Check if the widget still exists
+					_search->setAccessibleName("Search InputField Text");
+					_search->setAccessibleDescription(tr::lng_dlg_filter(tr::now));	
+					QAccessibleEvent event(_search, QAccessible::Focus);
+					QAccessible::updateAccessibility(&event);
+				}
+			});
+		}
+
 	updateCancelSearch();
 	updateForceDisplayWide();
 	updateSuggestions(anim::type::normal);
