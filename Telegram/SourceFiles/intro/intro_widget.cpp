@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "intro/intro_widget.h"
+#include <QApplication>
 
 #include "intro/intro_start.h"
 #include "intro/intro_phone.h"
@@ -46,6 +47,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_layers.h"
 #include "styles/style_intro.h"
 #include "base/qt/qt_common_adapters.h"
+#include <QTimer>                // For QTimer::singleShot
+#include <QAccessible>           // For QAccessible::updateAccessibility
+#include <QAccessibleEvent>  
 
 namespace Intro {
 namespace {
@@ -91,6 +95,30 @@ Widget::Widget(
 		this,
 		account,
 		rpl::single(true))) {
+			auto setAccessibleForButton = [](Ui::RpWidget *btn, const QString &name, const QString &desc = QString()) {
+				if (!btn) return;
+				btn->setAccessibleName(name);
+				if (!desc.isEmpty()) {
+					btn->setAccessibleDescription(desc);
+				}
+				btn->setFocusPolicy(Qt::StrongFocus);
+				btn->setStyleSheet("QPushButton:focus { border: 2px solid black; }");
+			};
+			
+			// Back button
+			// setAccessibleForButton(_back->entity(), tr::lng_back(tr::now), "Navigate to the previous page");
+			
+			// Settings button
+			// setAccessibleForButton(_settings->entity(), tr::lng_menu_settings(tr::now), "Open settings menu");
+			
+			// Next button (will also be updated dynamically in setupNextButton)
+			setAccessibleForButton(_next->entity(), tr::lng_start_msgs(tr::now), " ");
+			
+			// Update button
+			// if (_update) {
+			// 	setAccessibleForButton(_update->entity(), tr::lng_menu_update(tr::now), "Check for application updates");
+			// }
+			
 	controller->setDefaultFloatPlayerDelegate(floatPlayerDelegate());
 
 	getData()->country = ComputeNewAccountCountry();
@@ -697,6 +725,19 @@ void Widget::setupNextButton() {
 	) | rpl::filter([](const QString &text) {
 		return !text.isEmpty();
 	}));
+    
+getStep()->nextButtonText() | rpl::start_with_next([this](const QString &text) {
+    const auto button = _next->entity(); // Get the actual button widget
+    button->setAccessibleName(text);
+    button->setFocusPolicy(Qt::StrongFocus);
+    button->setObjectName("nextButton");
+    QString focusStyle = "QPushButton:focus { border: 2px solid black; }";
+    button->setStyleSheet(focusStyle);
+
+}, _stepLifetime);
+	
+	
+    
 	getStep()->nextButtonText(
 	) | rpl::map([](const QString &text) {
 		return !text.isEmpty();
@@ -829,17 +870,31 @@ void Widget::updateControlsGeometry() {
 }
 
 void Widget::keyPressEvent(QKeyEvent *e) {
-	if (_showAnimation || getStep()->animating()) return;
+    if (_showAnimation || getStep()->animating()) {
+        return;
+    }
 
-	if (e->key() == Qt::Key_Escape || e->key() == Qt::Key_Back) {
-		if (getStep()->hasBack()) {
-			backRequested();
-		}
-	} else if (e->key() == Qt::Key_Enter
-		|| e->key() == Qt::Key_Return
-		|| e->key() == Qt::Key_Space) {
-		getStep()->submit();
-	}
+    if (e->key() == Qt::Key_Escape || e->key() == Qt::Key_Back) {
+        if (getStep()->hasBack()) {
+            backRequested();
+            return; 
+        }
+    }
+
+    // Check which widget has focus
+    QWidget *focusWidget = QApplication::focusWidget();
+
+    if (focusWidget && focusWidget->objectName() == "skipButton" || focusWidget->objectName() == "nextButton") {
+        if (e->key() == Qt::Key_Enter ||
+            e->key() == Qt::Key_Return ||
+            e->key() == Qt::Key_Space) {
+            getStep()->submit();
+            return; // Stop further handling
+        }
+    }
+
+    // Otherwise, let the focused widget handle the key
+    QWidget::keyPressEvent(e);
 }
 
 void Widget::backRequested() {

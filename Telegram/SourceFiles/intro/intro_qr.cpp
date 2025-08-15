@@ -28,6 +28,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unixtime.h"
 #include "qr/qr_generate.h"
 #include "styles/style_intro.h"
+#include <QTimer>
+#include <QAccessible>           
+#include <QAccessibleEvent>
+#include <QApplication>
 
 namespace Intro {
 namespace details {
@@ -236,6 +240,59 @@ rpl::producer<QString> QrWidget::nextButtonText() const {
 
 void QrWidget::setupControls() {
 	const auto code = PrepareQrWidget(this, _qrCodes.events());
+
+	// --- ACCESSIBILITY: STAGE 1 --- (when QR code is being loaded)
+    code->setFocusPolicy(Qt::StrongFocus);
+    // Set the permanent name now, we will override it temporarily for announcements.
+    code->setAccessibleName("QR code loading ");
+    code->setAccessibleDescription(QString());
+
+   _announcer = new QLabel(this);
+   _announcer->setFixedSize(1, 1); 
+   _announcer->hide();             
+
+   const auto makeAnnouncement = [=](const QString &text) {
+	   const auto previousFocus = qApp->focusWidget();
+
+	   _announcer->setText(text);
+	   _announcer->setFocus();
+
+	   // Immediately restore focus to the original widget.
+	   if (previousFocus) {
+		   previousFocus->setFocus();
+	   }
+   };
+
+   QTimer::singleShot(100, this, [=] {
+	   makeAnnouncement("QR code loading");
+   });
+    // --- ACCESSIBILITY: STAGE 2 (WHEN QR CODE IS LOADED) ---
+    _qrCodes.events(
+    ) | rpl::take(1) | rpl::start_with_next([=] {
+
+        // Use a timer to sequence the "loaded" and "focus" announcements.
+        QTimer::singleShot(0, code, [=] {
+            // Announce that the code is now loaded.
+            code->setAccessibleName("QR code loaded. Ready to scan from mobile telegram.");
+            code->setAccessibleDescription(
+                "To log in, open Telegram on your phone. "
+                "Go to Settings, then Devices, then select Link Desktop Device. "
+                "Finally, scan the image shown here.");
+
+				code->setFocus();
+
+            auto event = new QAccessibleEvent(code, QAccessible::Event::Alert);
+            QAccessible::updateAccessibility(event);
+
+            // --- ACCESSIBILITY: STAGE 3 (FINAL NAME RESET & FOCUS) ---
+            QTimer::singleShot(2000, code, [=] {
+                // Reset the name back to its permanent value.
+                code->setAccessibleName("QR code to login");
+                code->setFocus();
+            });
+        });
+    }, lifetime());
+
 	rpl::combine(
 		sizeValue(),
 		code->widthValue()
@@ -301,6 +358,10 @@ void QrWidget::setupControls() {
 	const auto skip = Ui::CreateChild<Ui::LinkButton>(
 		this,
 		tr::lng_intro_qr_skip(tr::now));
+		skip->setFocusPolicy(Qt::StrongFocus);
+		skip->setAccessibleName(u"Log in by phone number"_q);
+		skip->setAccessibleDescription(u"log in using your phone number."_q);
+		skip->setObjectName("skipButton");
 	rpl::combine(
 		sizeValue(),
 		skip->widthValue()

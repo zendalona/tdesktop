@@ -10,6 +10,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/countryinput.h"
 #include "intro/intro_step.h"
 #include "base/timer.h"
+#include <QTimer> 
+#include <QLabel>
 
 namespace Intro {
 namespace details {
@@ -49,6 +51,7 @@ private:
 	base::Timer _refreshTimer;
 	mtpRequestId _requestId = 0;
 	bool _forceRefresh = false;
+	QLabel* _announcer = nullptr;
 
 };
 
