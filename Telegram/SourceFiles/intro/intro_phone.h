@@ -39,6 +39,8 @@ public:
 	bool hasBack() const override {
 		return true;
 	}
+	void qrloginLinkActivated() override;
+	void countryInputActivated() override;
 
 protected:
 	void resizeEvent(QResizeEvent *e) override;

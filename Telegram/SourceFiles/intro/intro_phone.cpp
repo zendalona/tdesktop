@@ -27,6 +27,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_controller.h"
 #include "window/window_session_controller.h"
 #include "countries/countries_instance.h" // Countries::Groups
+#include <QAccessible>
+#include <QAccessibleEvent>
+
 
 namespace Intro {
 namespace details {
@@ -61,6 +64,32 @@ PhoneWidget::PhoneWidget(
 	st::introPhone,
 	[](const QString &s) { return Countries::Groups(s); })
 , _checkRequestTimer([=] { checkRequest(); }) {
+
+	 // --- START OF ACCESSIBILITY SETUP ---
+    auto setAccessibleText = [](QWidget *widget, const QString &name, const QString &description) {
+        if (widget) {
+            widget->setAccessibleName(name);
+            widget->setAccessibleDescription(description);
+        }
+    };
+
+    setAccessibleText(
+        _country,
+        "Choose a country",
+        "Opens a list of countries to select from.");
+		_country->setFocusPolicy(Qt::StrongFocus);
+		_country->setObjectName("countryButton");
+
+    setAccessibleText(
+        _code,
+        "Country code",
+        "Your country's international dialing code. This is filled in automatically when you select a country.");
+
+    setAccessibleText(
+        _phone,
+        "Phone number",
+        "Enter your phone number here, without the country code.");
+   
 	_phone->frontBackspaceEvent(
 	) | rpl::start_with_next([=](not_null<QKeyEvent*> e) {
 		_code->startErasing(e);
@@ -96,6 +125,34 @@ PhoneWidget::PhoneWidget(
 		_country->chooseCountry(u"US"_q);
 	}
 	_changed = false;
+
+}
+
+void PhoneWidget::countryInputActivated() {
+    if (!_country) {
+        return;
+    }
+    const auto pos = _country->rect().center();
+
+    // Create the press event on the HEAP using 'new'.
+    // Qt will automatically delete this later.
+    QCoreApplication::postEvent(_country, new QMouseEvent(
+        QEvent::MouseButtonPress,
+        pos,
+        Qt::LeftButton,
+        Qt::LeftButton,
+        Qt::NoModifier));
+
+    // Create the release event on the HEAP as well.
+    QCoreApplication::postEvent(_country, new QMouseEvent(
+        QEvent::MouseButtonRelease,
+        pos,
+        Qt::LeftButton,
+        Qt::NoButton,
+        Qt::NoModifier));
+}
+void PhoneWidget::qrloginLinkActivated() {
+    goReplace<QrWidget>(Animate::Forward);
 }
 
 void PhoneWidget::setupQrLogin() {
@@ -103,6 +160,13 @@ void PhoneWidget::setupQrLogin() {
 		this,
 		tr::lng_phone_to_qr(tr::now));
 	qrLogin->show();
+
+	 // --- START OF ACCESSIBILITY SETUP ---
+	 qrLogin->setAccessibleName("Quick Log in using QR Code");
+	//  qrLogin->setAccessibleDescription("Switches to the alternative login method using a QR code.");
+	 qrLogin->setFocusPolicy(Qt::StrongFocus);
+	 qrLogin->setObjectName("qrlogin");
+	 // --- END OF ACCESSIBILITY SETUP ---
 
 	DEBUG_LOG(("PhoneWidget.qrLogin link created and shown."));
 

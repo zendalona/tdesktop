@@ -47,8 +47,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_layers.h"
 #include "styles/style_intro.h"
 #include "base/qt/qt_common_adapters.h"
-#include <QTimer>                // For QTimer::singleShot
-#include <QAccessible>           // For QAccessible::updateAccessibility
+#include <QAccessible>           
 #include <QAccessibleEvent>  
 
 namespace Intro {
@@ -112,7 +111,7 @@ Widget::Widget(
 			// setAccessibleForButton(_settings->entity(), tr::lng_menu_settings(tr::now), "Open settings menu");
 			
 			// Next button (will also be updated dynamically in setupNextButton)
-			setAccessibleForButton(_next->entity(), tr::lng_start_msgs(tr::now), " ");
+			setAccessibleForButton(_next->entity(), tr::lng_start_msgs(tr::now), "");
 			
 			// Update button
 			// if (_update) {
@@ -881,15 +880,21 @@ void Widget::keyPressEvent(QKeyEvent *e) {
         }
     }
 
-    // Check which widget has focus
-    QWidget *focusWidget = QApplication::focusWidget();
 
-    if (focusWidget && focusWidget->objectName() == "skipButton" || focusWidget->objectName() == "nextButton") {
-        if (e->key() == Qt::Key_Enter ||
-            e->key() == Qt::Key_Return ||
-            e->key() == Qt::Key_Space) {
+	const auto key = e->key();
+    if (key == Qt::Key_Enter || key == Qt::Key_Return || key == Qt::Key_Space) {
+        const auto name = focusWidget()->objectName();
+
+        if (name == qstr("countryButton")) {
+            getStep()->countryInputActivated();
+            return;
+        } else if (name == qstr("qrlogin")) {
+            getStep()->qrloginLinkActivated();
+            return;
+
+        } else if (name == qstr("skipButton") || name == qstr("nextButton")) {
             getStep()->submit();
-            return; // Stop further handling
+            return;
         }
     }
 

@@ -44,9 +44,16 @@ CodeWidget::CodeWidget(
 		refreshLang();
 	}, lifetime());
 
+	_noTelegramCode->setFocusPolicy(Qt::StrongFocus);
+    _noTelegramCode->setAccessibleName(tr::lng_code_no_telegram(tr::now));
+    _noTelegramCode->setAccessibleDescription(
+        "Request the code to be sent again.");
 	_noTelegramCode->addClickHandler([=] { noTelegramCode(); });
 
 	_code->setDigitsCountMax(getData()->codeLength);
+
+	_code->setAccessibleName(tr::lng_code_ph(tr::now));
+    _code->setAccessibleDescription(tr::lng_code_desc(tr::now));
 
 	updateDescText();
 	setTitleText(_isFragment.value(

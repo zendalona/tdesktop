@@ -28,6 +28,7 @@ CountryInput::CountryInput(
 , _show(show)
 , _st(st)
 , _text(tr::lng_country_code(tr::now)) {
+	setAccessibleName(_text);
 	resize(_st.width, _st.heightMin);
 }
 
@@ -162,4 +163,5 @@ void CountryInput::setText(const QString &newText) {
 	_text = _st.style.font->elided(
 		newText,
 		width() - _st.textMargins.left() - _st.textMargins.right());
+		setAccessibleName(_text);
 }
