@@ -8,6 +8,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #pragma once
 
 #include "ui/widgets/buttons.h"
+#include "base/event_filter.h"
+#include "base/timer.h" 
+#include <QKeyEvent>
+
 
 namespace style {
 struct SendButton;
@@ -18,6 +22,9 @@ namespace Ui {
 class SendButton final : public RippleButton {
 public:
 	SendButton(QWidget *parent, const style::SendButton &st);
+	[[nodiscard]] rpl::producer<> toggled() const;
+    [[nodiscard]] rpl::producer<> held() const;
+	[[nodiscard]] rpl::producer<> released() const;
 
 	static constexpr auto kSlowmodeDelayLimit = 100 * 60;
 
@@ -39,6 +46,8 @@ public:
 
 protected:
 	void paintEvent(QPaintEvent *e) override;
+	void keyPressEvent(QKeyEvent *e) override;
+    void keyReleaseEvent(QKeyEvent *e) override;
 
 	QImage prepareRippleMask() const override;
 	QPoint prepareRippleStartPosition() const override;
@@ -55,6 +64,7 @@ private:
 	void paintSchedule(QPainter &p, bool over);
 	void paintSlowmode(QPainter &p);
 
+	bool _heldActive = false;
 	const style::SendButton &_st;
 
 	Type _type = Type::Send;
@@ -65,6 +75,15 @@ private:
 
 	int _slowmodeDelay = 0;
 	QString _slowmodeDelayText;
+
+	 // Add rpl event streams
+	 rpl::event_stream<> _toggled;
+	 rpl::event_stream<> _held;
+	 rpl::event_stream<> _released;
+	 base::Timer _keyHoldTimer;
+ 
+	
+	
 
 };
 

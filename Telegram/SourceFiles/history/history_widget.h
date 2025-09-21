@@ -313,6 +313,10 @@ public:
 
 	void tryProcessKeyInput(not_null<QKeyEvent*> e);
 
+	[[nodiscard]] VoiceRecordBar *getVoiceRecordBar() const {
+        return _voiceRecordBar.get();
+    }
+
 	~HistoryWidget();
 
 protected:

@@ -11,6 +11,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "ui/ui_utility.h"
 #include "styles/style_chat_helpers.h"
+#include <iostream>
+#include "base/timer.h"
+#include <QApplication>
 
 namespace Ui {
 namespace {
@@ -19,10 +22,38 @@ constexpr int kWideScale = 5;
 
 } // namespace
 
+rpl::producer<> SendButton::toggled() const { return _toggled.events(); }
+rpl::producer<> SendButton::held() const { return _held.events(); }
+rpl::producer<> SendButton::released() const { return _released.events(); }
+
 SendButton::SendButton(QWidget *parent, const style::SendButton &st)
 : RippleButton(parent, st.inner.ripple)
-, _st(st) {
-	resize(_st.inner.width, _st.inner.height);
+, _st(st)
+, _keyHoldTimer([this] {
+    _held.fire({});
+}) {
+		resize(_st.inner.width, _st.inner.height);
+}
+
+void SendButton::keyPressEvent(QKeyEvent *e) {
+    if (e->key() == Qt::Key_Enter || e->key() == Qt::Key_Return) {
+        if (!e->isAutoRepeat() && !_keyHoldTimer.isActive()) {
+            _keyHoldTimer.callOnce(300);
+        }
+    } else { RippleButton::keyPressEvent(e); }
+}
+
+void SendButton::keyReleaseEvent(QKeyEvent *e) {
+    if (e->key() == Qt::Key_Enter || e->key() == Qt::Key_Return) {
+        if (!e->isAutoRepeat()) {
+            if (_keyHoldTimer.isActive()) {
+                _keyHoldTimer.cancel();
+                _toggled.fire({});
+            } else {
+                _released.fire({});
+            }
+        }
+    } else { RippleButton::keyReleaseEvent(e); }
 }
 
 void SendButton::setType(Type type) {

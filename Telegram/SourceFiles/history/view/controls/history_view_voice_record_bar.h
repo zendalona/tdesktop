@@ -77,12 +77,17 @@ public:
 	void showDiscardBox(
 		Fn<void()> &&callback,
 		anim::type animated = anim::type::instant);
-
+	
+	void stop(bool send);
 	void startRecording();
+	void pauseForKeyboard(); 
+	void stopForKeyboard();
 	void finishAnimating();
 	void hideAnimated();
 	void hideFast();
 	void clearListenState();
+	void lockForKeyboard();
+	void toggleTTL();
 
 	void orderControls();
 
@@ -133,7 +138,7 @@ private:
 	void recordUpdated(quint16 level, int samples);
 	void checkTipRequired();
 
-	void stop(bool send);
+	// void stop(bool send);
 	void stopRecording(StopType type, bool ttlBeforeHide = false);
 	void visibilityAnimate(bool show, Fn<void()> &&callback);
 

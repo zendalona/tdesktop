@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/history_widget.h"
+#include "history/view/controls/history_view_voice_record_bar.h"
 
 #include "api/api_editing.h"
 #include "api/api_bot.h"
@@ -176,6 +177,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <QtGui/QWindow>
 #include <QtCore/QMimeData>
+#include <QAccessible>
+
 
 namespace {
 
@@ -347,6 +350,42 @@ HistoryWidget::HistoryWidget(
 
 	_fieldBarCancel->addClickHandler([=] { cancelFieldAreaState(); });
 	_send->addClickHandler([=] { sendButtonClicked(); });
+
+	_send->toggled() | rpl::start_with_next([=] {
+		Core::App().settings().setRecordVideoMessages(
+			!Core::App().settings().recordVideoMessages());
+		updateSendButtonType();
+	}, lifetime());
+	
+	_send->held(
+	) | rpl::start_with_next([=] {
+		if (_send->type() == Ui::SendButton::Type::Record) {
+			// 1. Command the recording to start.
+			_voiceRecordBar->startRecording();
+	
+			// 2. Now, listen for the 'recordingStateChanges' signal from the bar.
+			_voiceRecordBar->recordingStateChanges(
+			) | rpl::filter([](bool active) {
+				// We only care about the moment it becomes active.
+				return active;
+			}) | rpl::take(1) | rpl::start_with_next([=] {
+				// 3. ONCE it's active, set the focus and lock it.
+				_send->setFocus();
+				_voiceRecordBar->lockForKeyboard();
+			}, _voiceRecordBar->lifetime());
+		}
+	}, lifetime());
+		
+		
+	
+	_send->released() | rpl::start_with_next([=] {
+		if (_voiceRecordBar->isActive()) {
+			_voiceRecordBar->stop(true); 
+		}
+	}, lifetime());
+
+	
+	
 
 	_mediaEditManager.updateRequests() | rpl::start_with_next([this] {
 		updateOverStates(mapFromGlobal(QCursor::pos()));
@@ -4996,6 +5035,17 @@ void HistoryWidget::updateSendButtonType() {
 	const auto type = computeSendButtonType();
 	_send->setType(type);
 
+	if (type == Type::Record) {
+        _send->setAccessibleName("voice record ");
+        _send->setFocusPolicy(Qt::TabFocus);
+    } else if (type == Type::Send) {
+        _send->setAccessibleName("send");
+        _send->setFocusPolicy(Qt::TabFocus);
+    } else {
+        _send->setAccessibleName("Round");
+        _send->setFocusPolicy(Qt::TabFocus);
+    }
+
 	// This logic is duplicated in RepliesWidget.
 	const auto disabledBySlowmode = _peer
 		&& _peer->slowmodeApplied()
@@ -6895,7 +6945,22 @@ void HistoryWidget::jumpToReply(FullReplyTo to) {
 void HistoryWidget::keyPressEvent(QKeyEvent *e) {
 	if (!_history) return;
 
-	const auto commonModifiers = e->modifiers() & kCommonModifiers;
+	 const auto commonModifiers = e->modifiers() & kCommonModifiers;
+	 if (_voiceRecordBar && _voiceRecordBar->isActive()) {
+		_voiceRecordBar->lockForKeyboard();
+        if (e->key() == Qt::Key_D) { 
+            _voiceRecordBar->stop(false); 
+            return;
+        } else if (e->key() == Qt::Key_Space && !(e->modifiers() & kCommonModifiers)) {
+            _voiceRecordBar->pauseForKeyboard(); 
+            return;
+        } else if (e->key() == Qt::Key_O) {
+             _voiceRecordBar->toggleTTL(); 
+             return;
+        }
+    }
+
+	
 	if (e->key() == Qt::Key_Escape) {
 		if (hasFocus()) {
 			escape();
@@ -6933,6 +6998,10 @@ void HistoryWidget::keyPressEvent(QKeyEvent *e) {
 			e->ignore();
 		}
 	} else if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) {
+		if (_send->hasFocus()) {
+            e->ignore();
+            return;
+        }
 		if (!_botStart->isHidden()) {
 			sendBotStartCommand();
 		}
@@ -7078,6 +7147,7 @@ void HistoryWidget::fieldTabbed() {
 	if (_supportAutocomplete) {
 		_supportAutocomplete->activate(_field.data());
 	}
+	_send->setFocus();
 }
 
 void HistoryWidget::sendInlineResult(InlineBots::ResultSelected result) {

@@ -748,6 +748,11 @@ void ListenWrap::initPlayButton() {
 	const auto &width = _waveformBgFinalCenterRect.height();
 	_playPauseButton->resize(width, width);
 	_playPauseButton->show();
+	_playPauseButton->setAccessibleName("Play"); // e.g., "Play"
+	_playPauseButton->setFocusPolicy(Qt::TabFocus);
+	crl::on_main(_playPauseButton.get(), [=] {
+        _playPauseButton->setFocus();
+    });
 
 	_playPauseButton->paintRequest(
 	) | rpl::start_with_next([=](const QRect &clip) {
@@ -772,6 +777,9 @@ void ListenWrap::initPlayButton() {
 		_playPause.setState(pause
 			? PlayButtonLayout::State::Pause
 			: PlayButtonLayout::State::Play);
+			_playPauseButton->setAccessibleName(pause
+				? "Pause"   // e.g., "Pause"
+				: "Play");    // e.g., "Play"
 	}, _lifetime);
 
 	instance()->updatedNotifier(
@@ -1789,6 +1797,30 @@ void VoiceRecordBar::initLevelGeometry() {
 		_level->moveToLeft(mapped.x() + center, mapped.y() + center);
 	}, lifetime());
 }
+
+void VoiceRecordBar::stopForKeyboard() {
+    // This calls the internal stop method with 'true' to indicate SEND.
+    stop(true);
+}
+
+void VoiceRecordBar::pauseForKeyboard() {
+    // This calls the internal pause function with 'Listen', which you
+    stopRecording(StopType::Listen);
+}
+void VoiceRecordBar::lockForKeyboard() {
+    // lock the record to enable once
+    if (_lock && !_lock->isLocked()) {
+        _lock->clicked(Qt::NoModifier, Qt::LeftButton);
+    }
+}
+
+void VoiceRecordBar::toggleTTL() {
+    if (_ttlButton && _ttlButton->isVisible()) {
+        _ttlButton->clicked(Qt::NoModifier, Qt::LeftButton);
+    }
+}
+
+
 
 void VoiceRecordBar::startRecording() {
 	if (isRecording()) {
