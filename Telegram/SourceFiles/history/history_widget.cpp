@@ -1011,6 +1011,25 @@ HistoryWidget::HistoryWidget(
 	setupSendAsToggle();
 	orderWidgets();
 	setupShortcuts();
+	_field->setFocusPolicy(Qt::StrongFocus);
+	_send->setFocusPolicy(Qt::StrongFocus);
+	_attachToggle->setFocusPolicy(Qt::StrongFocus);
+	_scroll->setFocusPolicy(Qt::StrongFocus);
+
+	// Set accessible names for screen readers.
+	_field->setAccessibleName(QStringLiteral("Message input"));
+	_attachToggle->setAccessibleName(QStringLiteral("Attach"));
+	_send->setAccessibleName(QStringLiteral("Send"));
+	_scroll->setAccessibleName(QStringLiteral("Message history"));
+
+	// Tab order: field -> attach -> send -> message history (then flows to search field and chat list)
+	QWidget::setTabOrder(_field, _attachToggle);
+	QWidget::setTabOrder(_attachToggle, _send.get());
+	QWidget::setTabOrder(_send.get(), _scroll);
+
+	// Install event filters to handle Enter key on attach and send buttons
+	_attachToggle->installEventFilter(this);
+	_send->installEventFilter(this);
 }
 
 void HistoryWidget::setGeometryWithTopMoved(
@@ -2500,6 +2519,7 @@ void HistoryWidget::showHistory(
 		_scroll->hide();
 		_list = _scroll->setOwnedWidget(
 			object_ptr<HistoryInner>(this, _scroll, controller(), _history));
+			_scroll->setFocusProxy(_list); 
 		_list->show();
 
 		if (const auto channel = _peer->asChannel()) {
@@ -2667,6 +2687,11 @@ void HistoryWidget::setHistory(History *history) {
 		const auto wasHistory = base::take(_history);
 		const auto wasMigrated = base::take(_migrated);
 		unloadHeavyViewParts(wasHistory);
+		
+		// Clear key navigation element when switching chats to prevent semantic errors
+		if (_list) {
+			_list->clearKeyNavElement();
+		}
 		unloadHeavyViewParts(wasMigrated);
 	}
 	if (history) {
@@ -4919,7 +4944,21 @@ bool HistoryWidget::insertBotCommand(const QString &cmd) {
 
 bool HistoryWidget::eventFilter(QObject *obj, QEvent *e) {
 	if (e->type() == QEvent::KeyPress) {
-		const auto k = static_cast<QKeyEvent*>(e);
+		const auto k = static_cast<QKeyEvent*>(e);	
+		// Handle Enter key on attach and send buttons
+		if (k->key() == Qt::Key_Return || k->key() == Qt::Key_Enter) {
+			if (obj == _attachToggle) {
+				chooseAttach();
+				return true;
+			} else if (obj == _send.get()) {
+				if (computeSendButtonType() == Ui::SendButton::Type::Send) {
+					sendButtonClicked();
+					return true;
+				}
+				
+			}
+		}
+		
 		if ((k->modifiers() & kCommonModifiers) == Qt::ControlModifier) {
 			if (k->key() == Qt::Key_Up) {
 #ifdef Q_OS_MAC
@@ -6974,19 +7013,32 @@ void HistoryWidget::keyPressEvent(QKeyEvent *e) {
 	} else if (e->key() == Qt::Key_PageUp) {
 		_scroll->keyPressEvent(e);
 	} else if (e->key() == Qt::Key_Down && !commonModifiers) {
-		_scroll->keyPressEvent(e);
-	} else if (e->key() == Qt::Key_Up && !commonModifiers) {
-		const auto item = _history
-			? _history->lastEditableMessage()
-			: nullptr;
-		if (item
-			&& _field->empty()
-			&& !_editMsgId
-			&& !_replyTo) {
-			editMessage(item, {});
-			return;
+		// _scroll->keyPressEvent(e);
+		if (const auto inner = qobject_cast<HistoryInner*>(_scroll->widget())) {
+			inner->navigateDown();
 		}
-		_scroll->keyPressEvent(e);
+	} else if (e->key() == Qt::Key_Up && !commonModifiers) {
+		const auto inner = qobject_cast<HistoryInner*>(_scroll->widget());
+		if (inner && inner->isNavigating()) {
+			// If we are already navigating the list, just navigate.
+			inner->navigateUp();
+		} else {
+			// Otherwise, perform the original "edit last message" action.
+
+			const auto item = _history
+				? _history->lastEditableMessage()
+				: nullptr;
+			if (item
+				&& _field->empty()
+				&& !_editMsgId
+				&& !_replyTo) {
+				editMessage(item, {});
+				return;
+			}
+			if (inner) {
+				inner->navigateUp();
+			}
+		}
 	} else if (e->key() == Qt::Key_Up
 		&& commonModifiers == Qt::ControlModifier) {
 		if (!replyToPreviousMessage()) {
@@ -7147,7 +7199,7 @@ void HistoryWidget::fieldTabbed() {
 	if (_supportAutocomplete) {
 		_supportAutocomplete->activate(_field.data());
 	}
-	_send->setFocus();
+    _attachToggle->setFocus();
 }
 
 void HistoryWidget::sendInlineResult(InlineBots::ResultSelected result) {

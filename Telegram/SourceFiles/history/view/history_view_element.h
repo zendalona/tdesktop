@@ -598,6 +598,7 @@ public:
 	static void Moused(Element *view);
 	[[nodiscard]] static Element *Moused();
 	static void ClearGlobal();
+	[[nodiscard]] const Ui::Text::String &text() const;
 
 protected:
 	void paintHighlight(
@@ -609,7 +610,7 @@ protected:
 
 	virtual void refreshDataIdHook();
 
-	[[nodiscard]] const Ui::Text::String &text() const;
+	// [[nodiscard]] const Ui::Text::String &text() const;
 	[[nodiscard]] int textHeightFor(int textWidth);
 	void validateText();
 	void validateTextSkipBlock(bool has, int width, int height);

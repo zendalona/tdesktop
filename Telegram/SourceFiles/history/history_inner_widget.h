@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/history_view_top_bar_widget.h"
 
 #include <QtGui/QPainterPath>
+#include <QAccessible>
 
 struct ClickContext;
 struct ClickHandlerContext;
@@ -66,6 +67,9 @@ using namespace ::Ui;
 class VideoUserpic;
 } // namespace Dialogs::Ui
 
+namespace HistoryView::Accessibility {
+	class InnerAccessible;
+	}
 class HistoryInner;
 class HistoryMainElementDelegate;
 class HistoryMainElementDelegateMixin {
@@ -90,6 +94,7 @@ class HistoryWidget;
 class HistoryInner
 	: public Ui::RpWidget
 	, public Ui::AbstractTooltipShower {
+		Q_OBJECT
 public:
 	using Element = HistoryView::Element;
 
@@ -223,8 +228,21 @@ public:
 
 	[[nodiscard]] static auto DelegateMixin()
 	-> std::unique_ptr<HistoryMainElementDelegateMixin>;
+	
+	void navigateUp();
+    void navigateDown();
+	Element *keyNavElement() const { return _keyNavElement; }
+	std::vector<HistoryView::Element*> accessibleElements() const;
+	bool isNavigating() const { return (_keyNavElement != nullptr); }
+	void clearKeyNavElement() { setKeyNavElement(nullptr); }
+	std::vector<HistoryView::Element*> visibleAccessibleElements() const;
+	
 
+	
+	
 protected:
+	void focusInEvent(QFocusEvent *e) override;  
+    void focusOutEvent(QFocusEvent *e) override; 
 	bool focusNextPrevChild(bool next) override;
 
 	bool eventHook(QEvent *e) override; // calls touchEvent when necessary
@@ -243,6 +261,9 @@ protected:
 private:
 	void onTouchSelect();
 	void onTouchScrollTimer();
+
+	void setKeyNavElement(Element *element);
+    void ensureElementVisible(Element *element);
 
 	[[nodiscard]] static int SelectionViewOffset(
 		not_null<const HistoryInner*> inner,
@@ -552,6 +573,7 @@ private:
 	int _scrollDateLastItemTop = 0;
 	ClickHandlerPtr _scrollDateLink;
 
+	Element *_keyNavElement = nullptr;
 };
 
 [[nodiscard]] bool CanSendReply(not_null<const HistoryItem*> item);

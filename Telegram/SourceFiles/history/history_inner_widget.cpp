@@ -98,6 +98,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtGui/QClipboard>
 #include <QtWidgets/QApplication>
 #include <QtCore/QMimeData>
+#include <QAccessibleEvent>
+#include <QAccessible>
+#include <iostream>
+#include <QDebug> 
 
 namespace {
 
@@ -336,8 +340,9 @@ HistoryInner::HistoryInner(
 		controller->setChatStyleTheme(_theme);
 	}, lifetime());
 	Assert(_theme != nullptr);
-
+	_keyNavElement = nullptr;
 	setAttribute(Qt::WA_AcceptTouchEvents);
+	setFocusPolicy(Qt::StrongFocus);
 
 	refreshAboutView();
 
@@ -440,6 +445,7 @@ HistoryInner::HistoryInner(
 
 	setupSharingDisallowed();
 	setupSwipeReply();
+	setAccessibleName("Message list");
 }
 
 void HistoryInner::reactionChosen(const ChosenReaction &reaction) {
@@ -1099,6 +1105,14 @@ void HistoryInner::paintEvent(QPaintEvent *e) {
 				seltoy - mtop);
 			context.highlight = _widget->itemHighlight(view->data());
 			view->draw(p, context);
+			if (view == _keyNavElement) { 
+				p.setPen(QPen(Qt::black, 2));
+				p.setBrush(Qt::NoBrush);
+				QRectF rect(0, 0, view->width(), view->height());
+				// Inset the rectangle by half the pen width (2px / 2 = 1px)
+				rect.adjust(1, 1, -1, -1); 
+				p.drawRect(rect);
+			}
 			processPainted(view, top, height);
 
 			top += height;
@@ -1145,6 +1159,14 @@ void HistoryInner::paintEvent(QPaintEvent *e) {
 					seltoy - htop);
 				context.highlight = _widget->itemHighlight(item);
 				view->draw(p, context);
+				if (view == _keyNavElement) { 
+					p.setPen(QPen(Qt::black, 2));
+					p.setBrush(Qt::NoBrush);
+					QRectF rect(0, 0, view->width(), view->height());
+					// Inset the rectangle by half the pen width (2px / 2 = 1px)
+					rect.adjust(1, 1, -1, -1); 
+					p.drawRect(rect);
+				}
 				processPainted(view, top, height);
 			}
 			top += height;
@@ -4746,6 +4768,187 @@ auto HistoryInner::DelegateMixin()
 -> std::unique_ptr<HistoryMainElementDelegateMixin> {
 	return std::make_unique<HistoryMainElementDelegate>();
 }
+
+std::vector<HistoryView::Element*> HistoryInner::accessibleElements() const {
+    std::vector<HistoryView::Element*> result;
+    const auto gather = [&](not_null<History*> history) {
+        for (const auto &block : history->blocks) {
+            for (const auto &message : block->messages) {
+                if (message->isHidden()) {
+                    continue;
+                }
+                result.push_back(message.get());
+            }
+        }
+    };
+
+    if (_migrated) {
+        gather(_migrated);
+    }
+    gather(_history);
+
+    return result;
+}
+
+void HistoryInner::setKeyNavElement(Element *element) {
+    if (_keyNavElement == element) {
+        return;
+    }
+	// 1. Store the old pointer in a temporary variable.
+    const auto oldKeyNavElement = _keyNavElement;
+
+    // 2. Immediately update the main pointer.
+    _keyNavElement = element;
+
+    // 3. Now, safely repaint using the old and new pointers.
+    repaintItem(oldKeyNavElement);
+    repaintItem(_keyNavElement);
+	
+
+    // // Repaint the old and new elements to update their focus highlight.
+    // repaintItem(_keyNavElement);
+    // _keyNavElement = element;
+    // repaintItem(_keyNavElement);
+
+    if (_keyNavElement) {
+        ensureElementVisible(_keyNavElement);
+    }
+
+	if (auto parentInterface = QAccessible::queryAccessibleInterface(this)) {
+        // Find the index of our newly focused element.
+        const auto elements = accessibleElements();
+        const auto it = std::find(elements.cbegin(), elements.cend(), _keyNavElement);
+
+        if (it != elements.cend()) {
+            const int index = std::distance(elements.cbegin(), it);
+            // Get the accessible child for that index.
+            if (auto childInterface = parentInterface->child(index)) {
+                // Send a focus event for that specific child.
+                QAccessibleEvent event(childInterface, QAccessible::Focus);
+                QAccessible::updateAccessibility(&event);
+            }
+        }
+    }
+}
+
+void HistoryInner::ensureElementVisible(Element *element) {
+    if (!element) {
+        return;
+    }
+
+    // 1. Calculate the height of the UI controls below the message list.
+    const int bottomMargin = _widget->height() - _scroll->geometry().bottom();
+
+    const auto itemRect = QRect(0, itemTop(element), 1, element->height());
+
+    // 2. Use the y-margin to ensure the item is visible above the controls.
+    //    We tell it to make the BOTTOM of the item visible, with a margin.
+    _scroll->ensureVisible(
+        itemRect.x(),
+        itemRect.y() + itemRect.height(),
+        0, // x-margin
+        bottomMargin); // y-margin
+}
+
+void HistoryInner::navigateUp() {
+	// const auto elements = visibleAccessibleElements();
+    auto elements = accessibleElements();
+    if (elements.empty()) {
+        setKeyNavElement(nullptr);
+        return;
+    }
+
+    int current = -1;
+    if (_keyNavElement) {
+        auto it = std::find(elements.cbegin(), elements.cend(), _keyNavElement);
+        if (it != elements.cend()) {
+            current = std::distance(elements.cbegin(), it);
+        }
+    }
+
+    if (current > 0) {
+        setKeyNavElement(elements[current - 1]);
+    } else if (current == -1) { // If nothing is selected, select the last item.
+        setKeyNavElement(elements.back());
+    }
+}
+
+
+void HistoryInner::navigateDown() {
+    auto elements = accessibleElements();
+    if (elements.empty()) {
+        setKeyNavElement(nullptr);
+        return;
+    }
+
+    int current = -1;
+    if (_keyNavElement) {
+        auto it = std::find(elements.cbegin(), elements.cend(), _keyNavElement);
+        if (it != elements.cend()) {
+            current = std::distance(elements.cbegin(), it);
+        }
+    }
+
+    if (current != -1 && current + 1 < elements.size()) {
+        setKeyNavElement(elements[current + 1]);
+    } else if (current == -1) { // If nothing is selected, select the first item.
+        setKeyNavElement(elements.front());
+    }
+}
+
+void HistoryInner::focusInEvent(QFocusEvent *e) {
+    // When we tab into the list, start navigation from the last visible element.
+    const auto visibleElements = visibleAccessibleElements();
+    if (!visibleElements.empty()) {
+        setKeyNavElement(visibleElements.back());
+    } else {
+        // Fallback to last element if no visible elements
+        const auto elements = accessibleElements();
+        if (!elements.empty()) {
+            setKeyNavElement(elements.back());
+        }
+    }
+}
+
+void HistoryInner::focusOutEvent(QFocusEvent *e) {
+    // When we tab away, clear the navigation highlight.
+    setKeyNavElement(nullptr);
+}
+
+std::vector<HistoryView::Element*> HistoryInner::visibleAccessibleElements() const {
+    std::vector<HistoryView::Element*> result;
+
+    const auto gather = [&](not_null<History*> history, int historyTop) {
+        for (const auto &block : history->blocks) {
+            const auto blockTop = block->y() + historyTop;
+            const auto blockBottom = blockTop + block->height();
+            
+            // Skip blocks that are completely outside visible area
+            if (blockBottom <= _visibleAreaTop || blockTop >= _visibleAreaBottom) {
+                continue;
+            }
+            
+            for (const auto &message : block->messages) {
+                const auto itemTop = blockTop + message->y();
+                const auto itemBottom = itemTop + message->height();
+                
+                // Only include items that are at least partially visible
+                if (itemBottom > _visibleAreaTop && itemTop < _visibleAreaBottom) {
+                    result.push_back(message.get());
+                }
+            }
+        }
+    };
+
+    if (_migrated) {
+        gather(_migrated, migratedTop());
+    }
+    gather(_history, historyTop());
+
+    return result;
+}
+
+
 
 bool CanSendReply(not_null<const HistoryItem*> item) {
 	const auto peer = item->history()->peer;

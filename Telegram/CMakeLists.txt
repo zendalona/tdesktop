@@ -727,6 +727,10 @@ PRIVATE
     history/admin_log/history_admin_log_item.h
     history/admin_log/history_admin_log_section.cpp
     history/admin_log/history_admin_log_section.h
+    history/view/accessibility/history_inner_accessible.cpp
+    history/view/accessibility/history_inner_accessible.h
+    history/view/accessibility/history_item_accessible.cpp
+    history/view/accessibility/history_item_accessible.h
     history/view/controls/compose_controls_common.h
     history/view/controls/history_view_compose_controls.cpp
     history/view/controls/history_view_compose_controls.h
