@@ -94,6 +94,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "dialogs/ui/dialogs_video_userpic.h"
 #include "styles/style_chat.h"
 #include "styles/style_menu_icons.h"
+#include "data/data_audio_msg_id.h"
+#include "media/player/media_player_instance.h"
 
 #include <QtGui/QClipboard>
 #include <QtWidgets/QApplication>
@@ -442,6 +444,22 @@ HistoryInner::HistoryInner(
 	) | rpl::start_with_next([=](int d) {
 		_scroll->scrollToY(_scroll->scrollTop() + d);
 	}, _scroll->lifetime());
+
+	::Media::Player::instance()->trackChanged(
+	) | rpl::filter([=](AudioMsgId::Type type) {
+		// Only act if it's a voice note and we are currently navigating.
+		return (type == AudioMsgId::Type::Voice && isNavigating());
+	}) | rpl::start_with_next([=](AudioMsgId::Type type) {
+		const auto current = ::Media::Player::instance()->current(type);
+		const auto document = current.audio();
+		const auto item = document ? document->owner().message(current.contextId()) : nullptr;
+		if (item && item->history() == _history) {
+			if (const auto view = viewByItem(item)) {
+				// Move our focus to the new item that just started playing.
+				setKeyNavElement(view);
+			}
+		}
+	}, lifetime());
 
 	setupSharingDisallowed();
 	setupSwipeReply();
@@ -3210,10 +3228,52 @@ TextForMimeData HistoryInner::getSelectedText() const {
 }
 
 void HistoryInner::keyPressEvent(QKeyEvent *e) {
-	if (e->key() == Qt::Key_Escape) {
-		_widget->escape();
-	} else if (e == QKeySequence::Copy && !_selected.empty()) {
-		copySelectedText();
+	const auto key = e->key(); // This declares the 'key' variable.
+	// if (_keyNavSubElement) {
+    //     // --- FOCUS IS ON A BUTTON INSIDE A MESSAGE ---
+    //     e->accept();
+    //     if (key == Qt::Key_Left) {
+    //         _keyNavSubElement = nullptr; // Go back to the parent message.
+    //         QAccessibleEvent event(this, QAccessible::Focus);
+    //         QAccessible::updateAccessibility(&event);
+    //     } else if (key == Qt::Key_Space || key == Qt::Key_Return || key == Qt::Key_Enter) {
+    //         handleFocusedElementActivation(); // Activate the button.
+    //     }
+    //     return;
+    // } else 
+	if (_keyNavElement) {
+        // --- FOCUS IS ON A MESSAGE ---
+        // if (key == Qt::Key_Right) {
+            // // Try to drill down into the message's controls.
+            // if (auto parent = QAccessible::queryAccessibleInterface(this)) {
+            //     if (auto item = parent->child(indexOfKeyNavElement())) {
+            //         if (item->childCount() > 0) {
+            //             _keyNavSubElement = item->child(0);
+            //             if (_keyNavSubElement) {
+            //                 QAccessibleEvent event(_keyNavSubElement, QAccessible::Focus);
+            //                 QAccessible::updateAccessibility(&event);
+            //             }
+            //         }
+            //     }
+            // }
+            // e->accept();
+            // return;
+        // } else 
+		 if (key == Qt::Key_Space && !(e->modifiers() & ~Qt::ShiftModifier)) {
+            handleFocusedElementActivation();
+            e->accept();
+            return;
+        } else if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+            toggleKeyNavElementSelection();
+            e->accept();
+            return;
+        }
+    }
+
+	if (key == Qt::Key_Escape) {
+        _widget->escape();
+    } else if (e == QKeySequence::Copy && !_selected.empty()) {
+        copySelectedText();
 #ifdef Q_OS_MAC
 	} else if (e->key() == Qt::Key_E
 		&& e->modifiers().testFlag(Qt::ControlModifier)
@@ -4823,10 +4883,25 @@ void HistoryInner::setKeyNavElement(Element *element) {
             const int index = std::distance(elements.cbegin(), it);
             // Get the accessible child for that index.
             if (auto childInterface = parentInterface->child(index)) {
-                // Send a focus event for that specific child.
-                QAccessibleEvent event(childInterface, QAccessible::Focus);
-                QAccessible::updateAccessibility(&event);
-            }
+				// 1. First, send focus for the parent list itself.
+				{
+					QAccessibleEvent parentFocus(parentInterface, QAccessible::Focus);
+					QAccessible::updateAccessibility(&parentFocus);
+				}
+			
+				// 2. Then send focus for the child (the actual list item).
+				{
+					QAccessibleEvent childFocus(childInterface, QAccessible::Focus);
+					QAccessible::updateAccessibility(&childFocus);
+				}
+			
+				// 3. Also send a Selection event to make Orca treat it as the active item.
+				{
+					QAccessibleEvent selectEvent(childInterface, QAccessible::Selection);
+					QAccessible::updateAccessibility(&selectEvent);
+				}
+			}
+			
         }
     }
 }
@@ -4850,8 +4925,57 @@ void HistoryInner::ensureElementVisible(Element *element) {
         bottomMargin); // y-margin
 }
 
+void HistoryInner::handleFocusedElementActivation() {
+    if (!_keyNavElement) {
+        return;
+    }
+    const auto item = _keyNavElement->data();
+    if (!item) {
+        return;
+    }
+
+    if (const auto media = item->media()) {
+        if (const auto document = media->document(); document && document->isVoiceMessage()) {
+            // This is the special case for voice notes
+            const auto mediaId = AudioMsgId(document, item->fullId());
+            ::Media::Player::instance()->playPause(mediaId);
+            // Move the accessibility focus to the button child
+            // if (auto parentInterface = QAccessible::queryAccessibleInterface(this)) {
+            //     const auto index = indexOfKeyNavElement();
+            //     if (index != -1) {
+            //         if (auto itemInterface = parentInterface->child(index)) {
+            //             if (itemInterface->childCount() > 0) {
+            //                 if (auto buttonInterface = itemInterface->child(0)) {
+            //                     _keyNavSubElement = buttonInterface;
+            //                     QAccessibleEvent event(buttonInterface, QAccessible::Focus);
+            //                     QAccessible::updateAccessibility(&event);
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+        } else if (document) { // Fallback for other media
+            _elementDelegate->elementOpenDocument(document, item->fullId());
+        } else if (const auto photo = media->photo()) {
+            _elementDelegate->elementOpenPhoto(photo, item->fullId());
+        }
+    }
+}
+
+void HistoryInner::toggleKeyNavElementSelection() {
+    if (!_keyNavElement) {
+        return;
+	}
+
+    const auto item = _keyNavElement->data();
+
+    changeSelectionAsGroup(&_selected, item, SelectAction::Invert);
+    repaintItem(item);
+    _widget->updateTopBarSelection();
+
+	
+}
 void HistoryInner::navigateUp() {
-	// const auto elements = visibleAccessibleElements();
     auto elements = accessibleElements();
     if (elements.empty()) {
         setKeyNavElement(nullptr);
@@ -4897,15 +5021,27 @@ void HistoryInner::navigateDown() {
 }
 
 void HistoryInner::focusInEvent(QFocusEvent *e) {
-    // When we tab into the list, start navigation from the last visible element.
-    const auto visibleElements = visibleAccessibleElements();
-    if (!visibleElements.empty()) {
-        setKeyNavElement(visibleElements.back());
-    } else {
-        // Fallback to last element if no visible elements
-        const auto elements = accessibleElements();
+    if (!_keyNavElement) {
+        // We are entering the list for the first time.
+        const auto elements = visibleAccessibleElements();
         if (!elements.empty()) {
-            setKeyNavElement(elements.back());
+            // 1. Set the bookmark directly without sending an event yet.
+            _keyNavElement = elements.back();
+            repaintItem(_keyNavElement);
+            ensureElementVisible(_keyNavElement);
+
+            // 2. Now, send a DELAYED focus event for the child item.
+            crl::on_main(this, [=] {
+                if (auto parent = QAccessible::queryAccessibleInterface(this)) {
+                    const auto index = indexOfKeyNavElement();
+                    if (index != -1) {
+                        if (auto child = parent->child(index)) {
+                            QAccessibleEvent event(child, QAccessible::Focus);
+                            QAccessible::updateAccessibility(&event);
+                        }
+                    }
+                }
+            });
         }
     }
 }
@@ -4948,7 +5084,16 @@ std::vector<HistoryView::Element*> HistoryInner::visibleAccessibleElements() con
     return result;
 }
 
-
+int HistoryInner::indexOfKeyNavElement() const {
+    if (!_keyNavElement) {
+        return -1;
+    }
+    const auto elements = accessibleElements();
+    const auto it = std::find(elements.cbegin(), elements.cend(), _keyNavElement);
+    return (it != elements.cend())
+        ? std::distance(elements.cbegin(), it)
+        : -1;
+}
 
 bool CanSendReply(not_null<const HistoryItem*> item) {
 	const auto peer = item->history()->peer;

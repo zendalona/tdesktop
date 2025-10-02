@@ -236,6 +236,7 @@ public:
 	bool isNavigating() const { return (_keyNavElement != nullptr); }
 	void clearKeyNavElement() { setKeyNavElement(nullptr); }
 	std::vector<HistoryView::Element*> visibleAccessibleElements() const;
+	void toggleKeyNavElementSelection(); 
 	
 
 	
@@ -264,6 +265,8 @@ private:
 
 	void setKeyNavElement(Element *element);
     void ensureElementVisible(Element *element);
+    void handleFocusedElementActivation();
+	
 
 	[[nodiscard]] static int SelectionViewOffset(
 		not_null<const HistoryInner*> inner,
@@ -573,7 +576,9 @@ private:
 	int _scrollDateLastItemTop = 0;
 	ClickHandlerPtr _scrollDateLink;
 
+	int indexOfKeyNavElement() const; 
 	Element *_keyNavElement = nullptr;
+	QAccessibleInterface *_keyNavSubElement = nullptr;
 };
 
 [[nodiscard]] bool CanSendReply(not_null<const HistoryItem*> item);

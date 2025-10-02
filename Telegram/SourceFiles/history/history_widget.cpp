@@ -7014,28 +7014,37 @@ void HistoryWidget::keyPressEvent(QKeyEvent *e) {
 		_scroll->keyPressEvent(e);
 	} else if (e->key() == Qt::Key_Down && !commonModifiers) {
 		// _scroll->keyPressEvent(e);
-		if (const auto inner = qobject_cast<HistoryInner*>(_scroll->widget())) {
-			inner->navigateDown();
+		if (!editingMessage()) { 
+			if (const auto inner = qobject_cast<HistoryInner*>(_scroll->widget())) {
+				inner->navigateDown();
+			}
 		}
 	} else if (e->key() == Qt::Key_Up && !commonModifiers) {
 		const auto inner = qobject_cast<HistoryInner*>(_scroll->widget());
+		
 		if (inner && inner->isNavigating()) {
-			// If we are already navigating the list, just navigate.
+			// Case 1: Already navigating the list. Just continue.
 			inner->navigateUp();
-		} else {
-			// Otherwise, perform the original "edit last message" action.
-
+		} else if (!editingMessage()) {
+			// Case 2: Not navigating and not editing a message.
+			
+			// First, check if we should trigger the "edit last message" shortcut.
 			const auto item = _history
 				? _history->lastEditableMessage()
 				: nullptr;
 			if (item
+				&& _field->hasFocus()
 				&& _field->empty()
 				&& !_editMsgId
 				&& !_replyTo) {
 				editMessage(item, {});
-				return;
+				return; // Action taken, so we are done.
 			}
+	
+			// If the shortcut didn't apply, start navigating.
 			if (inner) {
+				// THE CRITICAL FIX: Give the list focus BEFORE navigating.
+				inner->setFocus();
 				inner->navigateUp();
 			}
 		}

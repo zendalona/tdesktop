@@ -64,6 +64,9 @@ public:
 		return _togglePlaylistRequests.events();
 	}
 
+protected:
+	 void keyPressEvent(QKeyEvent *e) override;
+
 private:
 	void resizeEvent(QResizeEvent *e) override;
 	void paintEvent(QPaintEvent *e) override;

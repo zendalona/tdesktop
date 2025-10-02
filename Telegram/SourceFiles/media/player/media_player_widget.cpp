@@ -39,6 +39,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_media_player.h"
 #include "styles/style_media_view.h"
 #include "styles/style_chat.h" // expandedMenuSeparator.
+#include <QtWidgets/QApplication>
 
 namespace Media {
 namespace Player {
@@ -201,6 +202,30 @@ Widget::Widget(
 	hidePlaylistOn(_rightControls);
 
 	setType(AudioMsgId::Type::Song);
+	setAccessibleName(qsl("Media Player"));
+	if (_previousTrack) {
+		_previousTrack->setFocusPolicy(Qt::StrongFocus);
+	}
+	_playPause->setFocusPolicy(Qt::StrongFocus);
+	if(_nextTrack) {
+		_nextTrack->setFocusPolicy(Qt::StrongFocus);
+	}
+	
+	// _volumeToggle->setFocusPolicy(Qt::StrongFocus);
+	// _speedToggle->setFocusPolicy(Qt::StrongFocus);
+	_close->setFocusPolicy(Qt::StrongFocus);
+	_volumeToggle->setAccessibleName(qsl("Volume"));
+	_speedToggle->setAccessibleName(qsl("Playback Speed"));
+	_close->setAccessibleName(qsl("Close Player"));
+
+	_nameLabel->setFocusPolicy(Qt::StrongFocus);
+	_timeLabel->setFocusPolicy(Qt::NoFocus);
+
+	QWidget::setTabOrder( _nameLabel, _previousTrack);
+	QWidget::setTabOrder(_previousTrack, _playPause);
+	QWidget::setTabOrder(_playPause, _nextTrack);
+	QWidget::setTabOrder(_nextTrack, _close);
+	
 }
 
 void Widget::hidePlaylistOn(not_null<Ui::RpWidget*> widget) {
@@ -393,6 +418,23 @@ void Widget::paintEvent(QPaintEvent *e) {
 	if (!fill.isEmpty()) {
 		p.fillRect(fill, st::mediaPlayerBg);
 	}
+	//focus style border
+	const auto focus = qApp->focusWidget();
+
+    // This is a small helper function to avoid repeating code.
+    const auto drawBorderAround = [&](QWidget *widget) {
+        if (widget && focus == widget) {
+            auto rect = widget->geometry();
+            p.setPen(QPen(Qt::black, 2));
+            p.setBrush(Qt::NoBrush);
+            p.drawRect(rect.adjusted(1, 1, -1, -1));
+        }
+    };
+    drawBorderAround(_nameLabel);
+    drawBorderAround(_playPause);
+    drawBorderAround(_previousTrack);
+    drawBorderAround(_nextTrack);
+    drawBorderAround(_close);
 }
 
 void Widget::enterEventHook(QEnterEvent *e) {
@@ -631,6 +673,10 @@ void Widget::handleSongUpdate(const TrackState &state) {
 		? &st::mediaPlayerPauseIcon
 		: nullptr);
 
+	const auto isPlaying = ShowPauseIcon(state.state);
+	_playPause->setAccessibleName(
+	isPlaying ? qsl("Pause") : qsl("Play"));
+
 	updateTimeText(state);
 }
 
@@ -734,6 +780,8 @@ void Widget::handleSongChange() {
 			.textWithEntities(true);
 	}
 	_nameLabel->setMarkedText(textWithEntities);
+
+	_nameLabel->setAccessibleName(textWithEntities.text);
 	handlePlaylistUpdate();
 	updateLabelsGeometry();
 }
@@ -751,6 +799,16 @@ void Widget::handlePlaylistUpdate() {
 		_nextTrack->setIconOverride(nextEnabled ? nullptr : &st::mediaPlayerNextDisabledIcon);
 		_nextTrack->setRippleColorOverride(nextEnabled ? nullptr : &st::mediaPlayerBg);
 		_nextTrack->setPointerCursor(nextEnabled);
+
+		_previousTrack->setDisabled(!previousEnabled);
+        _previousTrack->setAccessibleName(previousEnabled
+            ? qsl("Previous Track")
+            : qsl("No Previous Track"));
+
+        _nextTrack->setDisabled(!nextEnabled);
+        _nextTrack->setAccessibleName(nextEnabled
+            ? qsl("Next Track")
+            : qsl("No Next Track"));
 	}
 }
 
@@ -778,6 +836,44 @@ void Widget::destroyPrevNextButtons() {
 		_nextTrack.destroy();
 		updatePlayPrevNextPositions();
 	}
+}
+
+void Widget::keyPressEvent(QKeyEvent *e) {
+    if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) {
+        if (const auto button = static_cast<Ui::IconButton*>(qApp->focusWidget())) {
+            // Only check for the 4 buttons we need.
+            if (button == _playPause
+                || button == _previousTrack
+                || button == _nextTrack
+                || button == _close) {
+                
+                // --- THIS IS THE "FAKE MOUSE CLICK" LOGIC ---
+                QPoint pos = button->rect().center();
+                auto pressEvent = new QMouseEvent(
+                    QEvent::MouseButtonPress,
+                    pos,
+                    Qt::LeftButton,
+                    Qt::LeftButton,
+                    Qt::NoModifier);
+                auto releaseEvent = new QMouseEvent(
+                    QEvent::MouseButtonRelease,
+                    pos,
+                    Qt::LeftButton,
+                    Qt::NoButton,
+                    Qt::NoModifier);
+
+                QCoreApplication::postEvent(button, pressEvent);
+                QCoreApplication::postEvent(button, releaseEvent);
+                
+
+                e->accept();
+                return;
+            }
+        }
+    }
+
+    // For all other keys (including Tab), let Qt's default handling work.
+    RpWidget::keyPressEvent(e);
 }
 
 } // namespace Player
