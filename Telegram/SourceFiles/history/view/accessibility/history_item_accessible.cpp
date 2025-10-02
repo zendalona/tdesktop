@@ -28,12 +28,15 @@ namespace HistoryView::Accessibility {
 
 ItemAccessible::ItemAccessible(
     not_null<Element*> element,
-    not_null<const HistoryInner*> parentWidget) // <-- Added const
+    const HistoryInner* parentWidget) 
 : _element(element)
 , _parentWidget(parentWidget) {
 }
 
 bool ItemAccessible::isValid() const {
+    if (!_parentWidget) { // <-- ADD THIS SAFETY CHECK
+        return false;
+    }
     return (_parentWidget->viewByItem(_element->data()) == _element);
 }
 

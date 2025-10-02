@@ -14,7 +14,7 @@ class ItemAccessible final : public QAccessibleInterface {
 public:
     ItemAccessible(
         not_null<Element*> element,
-        not_null<const HistoryInner*> parentWidget);
+        const HistoryInner* parentWidget);
 
     // QAccessibleInterface required overrides
     bool isValid() const override;
@@ -34,7 +34,7 @@ public:
     not_null<Element*> element() const {
         return _element;
     }
-    not_null<const HistoryInner*> parentWidget() const {
+    const HistoryInner* parentWidget() const {
         return _parentWidget;
     }
 
@@ -68,7 +68,7 @@ private:
 
     
     const not_null<Element*> _element;
-    const not_null<const HistoryInner*> _parentWidget;
+    QPointer<const HistoryInner> _parentWidget;
 
 };
 
