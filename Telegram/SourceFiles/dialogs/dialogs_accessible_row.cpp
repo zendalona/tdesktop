@@ -12,14 +12,17 @@
 
 namespace Dialogs {
 
-	QString GenerateAccessibleDescription(
-        not_null<Entry*> entry,
+    QString GenerateAccessibleDescription(
+        not_null<Dialogs::Entry*> entry,
         HistoryItem *item) {
+    // Call expensive or repeated methods once at the top for efficiency.
+    const auto history = entry->asHistory();
     const auto name = entry->chatListName();
+
     QString result;
 
     // 1. Type (Chat type: Bot, Group, Channel, etc.)
-    if (const auto history = entry->asHistory()) {
+    if (history) {
         if (const auto peer = history->peer) {
             if (peer->isUser()) {
                 const auto user = peer->asUser();
@@ -34,28 +37,28 @@ namespace Dialogs {
         }
     }
 
-    // 2. Name (Contact or group name)
+    // 2. Name (Contact or group name) - Always add the name.
     result += name;
 
-    // 3. Unread Message Count
-    if (const auto history = entry->asHistory()) {
+    // Add details that require a valid history object.
+    if (history) {
+        // 3. Unread Message Count
         const int unread = history->unreadCount();
         if (unread > 0) {
             result += QString(". You have %1 unread message%2")
                 .arg(unread)
                 .arg(unread > 1 ? "s" : "");
         }
-    }
 
-    // 4. Muted or not
-    if (const auto history = entry->asHistory()) {
+        // 4. Muted or not
         if (history->muted()) {
             result += ". Muted.";
         }
     }
 
-    // 5. Sender name and Message Details
+    // Add details from the last message item, if it exists.
     if (item) {
+        // 5. Sender name
         const auto from = item->from();
         const auto fromName = (from && !from->name().isEmpty())
             ? from->name()
@@ -75,22 +78,22 @@ namespace Dialogs {
 
         // 7. Received at Time (with formatting)
         const auto timestamp = item->date();
-        QDateTime dt = QDateTime::fromSecsSinceEpoch(timestamp);
-        QDateTime now = QDateTime::currentDateTime();
+        const QDateTime dt = QDateTime::fromSecsSinceEpoch(timestamp);
+        const QDateTime now = QDateTime::currentDateTime();
 
         const bool isToday = dt.date() == now.date();
         const QString timeStr = dt.time().toString("h:mm AP");
-        const int day = dt.date().day();
-        const QString daySuffix = (day == 1 || day == 21 || day == 31) ? "st"
-            : (day == 2 || day == 22) ? "nd"
-            : (day == 3 || day == 23) ? "rd"
-            : "th";
-        const QString dateStr = QString::number(day) + daySuffix;
-        const QString monthStr = dt.date().toString("MMMM");
 
         if (isToday) {
             result += ". Received today at " + timeStr;
         } else {
+            const int day = dt.date().day();
+            const QString daySuffix = (day == 1 || day == 21 || day == 31) ? "st"
+                : (day == 2 || day == 22) ? "nd"
+                : (day == 3 || day == 23) ? "rd"
+                : "th";
+            const QString dateStr = QString::number(day) + daySuffix;
+            const QString monthStr = dt.date().toString("MMMM");
             result += ". Received at "
                 + timeStr + ", "
                 + dateStr + " of "
@@ -263,6 +266,8 @@ QString AccessibleRow::_accessibleText() const {
     return _row->entry()->chatListName();
     
 }
+
+AccessibleRow::~AccessibleRow() = default;
 
 AccessibleFakeRow::AccessibleFakeRow(FakeRow *row, int rowWidth, const InnerWidget *parentWidget)
     : _row(row), _parentWidget(parentWidget), _width(rowWidth) {}

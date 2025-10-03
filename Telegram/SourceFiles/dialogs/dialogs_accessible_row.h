@@ -20,6 +20,7 @@ namespace Dialogs
     {
     public:
         AccessibleRow(Row *row, int rowWidth, const InnerWidget *parentWidget);
+        ~AccessibleRow();
 
         // QAccessibleInterface
         QObject *object() const override;
