@@ -2,26 +2,30 @@
 #pragma once
 
 #include <QAccessibleWidget>
+#include <map>
 
 namespace Dialogs {
 
 class InnerWidget;
+class AccessibleRow;
 
 class AccessibleInnerWidget : public QAccessibleWidget {
 public:
-    explicit AccessibleInnerWidget(InnerWidget *widget);
+	AccessibleInnerWidget(InnerWidget *widget);
+	// ~AccessibleInnerWidget();
 
-    int childCount() const override;
-    QAccessibleInterface *child(int index) const override;
-    int indexOfChild(const QAccessibleInterface *child) const override;
-    QAccessibleInterface *focusChild() const override;
+	QAccessibleInterface *child(int index) const override;
+	int childCount() const override;
+	int indexOfChild(const QAccessibleInterface *child) const override;
+	
+	QAccessibleInterface *focusChild() const override;
+	QAccessibleInterface *childAt(int x, int y) const override;
+	
+	QAccessible::Role role() const override;
+	QAccessible::State state() const override;
 
-    QAccessibleInterface *childAt(int x, int y) const override;
-    void setText(QAccessible::Text t, const QString &text) override;
-    QString text(QAccessible::Text t) const override;
-
-    QAccessible::Role role() const override;
-    QAccessible::State state() const override;
+private:
+	InnerWidget *_inner = nullptr;
 };
 
-}  // namespace Dialogs
+} // namespace Dialogs

@@ -81,15 +81,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_menu_icons.h"
 
 #include <QtWidgets/QApplication>
-
-#include <QtGui/QAccessible>
-#include <iostream>
-#include <QAccessibleWidget>
-#include <QAccessibleInterface>
-#include <QAccessible>
-#include <QAccessibleEvent>
 #include "dialogs/dialogs_accessible_inner_widget.h"
-
+#include "dialogs/dialogs_accessible_row.h"
+#include <iostream>
+#include <QDateTime>
 
 namespace Dialogs {
 namespace {
@@ -203,6 +198,13 @@ constexpr auto kPreviewPostsLimit = 3;
 
 } // namespace
 
+QAccessibleInterface *InnerWidgetFactory(const QString &key, QObject *object) {
+	if (auto widget = qobject_cast<InnerWidget*>(object)) {
+		return new AccessibleInnerWidget(widget);
+	}
+	return nullptr;
+}
+
 struct InnerWidget::CollapsedRow {
 	CollapsedRow(Data::Folder *folder) : folder(folder) {
 	}
@@ -211,13 +213,21 @@ struct InnerWidget::CollapsedRow {
 	BasicRow row;
 };
 
-InnerWidget::HashtagResult::HashtagResult(const QString &tag) : tag(tag) {
-}
+struct InnerWidget::HashtagResult {
+	HashtagResult(const QString &tag) : tag(tag) {
+	}
+	QString tag;
+	BasicRow row;
+};
 
-InnerWidget::PeerSearchResult::PeerSearchResult(
-    not_null<PeerData*> peer)
-: peer(peer) {
-}
+struct InnerWidget::PeerSearchResult {
+	explicit PeerSearchResult(not_null<PeerData*> peer) : peer(peer) {
+	}
+	not_null<PeerData*> peer;
+	mutable Ui::Text::String name;
+	mutable Ui::PeerBadge badge;
+	BasicRow row;
+};
 
 Key InnerWidget::FilterResult::key() const {
 	return row->key();
@@ -225,59 +235,6 @@ Key InnerWidget::FilterResult::key() const {
 
 int InnerWidget::FilterResult::bottom() const {
 	return top + row->height();
-}
-
-std::vector<Row*> InnerWidget::accessibleRows() const {
-    std::vector<Row*> result;
-
-    if (_state == WidgetState::Default) {
-		
-        for (const auto &item : *_shownList) {
-            result.push_back(item.get());
-        }
-    } else if (_state == WidgetState::Filtered) {
-        for (const auto &item : _filterResults) {
-            result.push_back(item.row.get());
-        }     
-    }
-
-    return result;
-}
-
-std::vector<FakeRow*> InnerWidget::accessibleFakeRows() const {
-    std::vector<FakeRow*> result;
-
-    if (_state == WidgetState::Filtered) {
-        for (const auto &item : _searchResults) {
-            if (auto row = dynamic_cast<FakeRow*>(item.get())) {
-                result.push_back(row);
-            }
-        }
-
-        for (const auto &item : _previewResults) {
-            if (auto row = dynamic_cast<FakeRow*>(item.get())) {
-                result.push_back(row);
-            }
-        }
-    }
-
-    return result;
-}
-
-std::vector<BasicRow*> InnerWidget::accessibleBasicRows() const {
-	std::vector<BasicRow*> result;
-
-	if (_state == WidgetState::Filtered) {
-		for (const auto &item : _hashtagResults) {
-			result.push_back(&item->row);
-		}
-
-		for (const auto &item : _peerSearchResults) {
-			result.push_back(&item->row);
-		}
-	}
-
-	return result;
 }
 
 InnerWidget::InnerWidget(
@@ -550,6 +507,7 @@ InnerWidget::InnerWidget(
 	refreshWithCollapsedRows(true);
 
 	setupShortcuts();
+	setupAccessibility();//accessiblity
 }
 
 bool InnerWidget::updateEntryHeight(not_null<Entry*> entry) {
@@ -3956,22 +3914,8 @@ void InnerWidget::setState(WidgetState state) {
 	_state = state;
 }
 
-void InnerWidget::triggerAccessibilityEvent(int index) {
-    if (index < 0) {
-        return;
-    }
-	std::cout << "Accessibility event triggered at index: " << index << std::endl;
-    if (auto accParent = QAccessible::queryAccessibleInterface(this)) {
-        if (auto accChild = accParent->child(index)) {
-            QAccessibleEvent event(accChild, QAccessible::Focus);
-            QAccessible::updateAccessibility(&event);
-        }
-    }
-}
-
 void InnerWidget::selectSkip(int32 direction) {
 	clearMouseSelection();
-	int accessibilityIndex = -1; // This will hold the final index for the accessibility event.
 	if (_state == WidgetState::Default) {
 		const auto skip = _skipTopDialog ? 1 : 0;
 		if (_collapsedRows.empty() && _shownList->size() <= skip) {
@@ -3980,9 +3924,8 @@ void InnerWidget::selectSkip(int32 direction) {
 		if (_collapsedSelected < 0 && !_selected) {
 			if (!_collapsedRows.empty()) {
 				_collapsedSelected = 0;
-				accessibilityIndex = _collapsedSelected; 
 			} else {
-				_selected = (_shownList->cbegin() + skip)->get();									
+				_selected = (_shownList->cbegin() + skip)->get();
 			}
 		} else {
 			auto cur = (_collapsedSelected >= 0)
@@ -4001,17 +3944,10 @@ void InnerWidget::selectSkip(int32 direction) {
 			if (cur < _collapsedRows.size()) {
 				_collapsedSelected = cur;
 				_selected = nullptr;
-				accessibilityIndex = _collapsedSelected;
 			} else {
 				_collapsedSelected = -1;
 				_selected = *(_shownList->cbegin() + skip + cur - _collapsedRows.size());
-
-				_accessibleFocusedRow = _selected;
-
-			}			
-		}
-        if (_selected) {
-			accessibilityIndex = int(_shownList->cfind(_selected) - _shownList->cbegin());
+			}
 		}
 		scrollToDefaultSelected();
 	} else if (_state == WidgetState::Filtered) {
@@ -4073,30 +4009,6 @@ void InnerWidget::selectSkip(int32 direction) {
 				_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = -1;
 			}
 		}
- 
-		// accessibility index of the selected item		
-		if (base::in_range(_hashtagSelected, 0, _hashtagResults.size())) {
-			accessibilityIndex = _hashtagSelected;
-		} else if (base::in_range(_filteredSelected, 0, _filterResults.size())) {
-			accessibilityIndex = _hashtagResults.size() + _filteredSelected;
-		} else if (base::in_range(_peerSearchSelected, 0, _peerSearchResults.size())) {
-			accessibilityIndex = _hashtagResults.size()
-				+ _filterResults.size()
-				+ _peerSearchSelected;
-		} else if (base::in_range(_previewSelected, 0, _previewResults.size())) {
-			accessibilityIndex = _hashtagResults.size()
-				+ _filterResults.size()
-				+ _peerSearchResults.size()
-				+ _previewSelected;
-		} else if (base::in_range(_searchedSelected, 0, _searchResults.size())) {
-			accessibilityIndex = _hashtagResults.size()
-				+ _filterResults.size()
-				+ _peerSearchResults.size()
-				+ _previewResults.size()
-				+ _searchedSelected;
-		}
-		
-
 		if (base::in_range(_hashtagSelected, 0, _hashtagResults.size())) {
 			const auto from = _hashtagSelected * st::mentionHeight;
 			scrollToItem(from, st::mentionHeight);
@@ -4127,7 +4039,21 @@ void InnerWidget::selectSkip(int32 direction) {
 			scrollToItem(from, height);
 		}
 	}
-	triggerAccessibilityEvent(accessibilityIndex);
+
+	if (const auto accessible = QAccessible::queryAccessibleInterface(this)) {
+		const auto index = currentAccessibleIndex();
+		if (index >= 0) {
+			if (QAccessibleInterface *child = accessible->child(index)) {
+				
+				QAccessibleEvent focusEvent(child, QAccessible::Focus);
+				QAccessible::updateAccessibility(&focusEvent);
+				
+				QAccessibleEvent selectEvent(child, QAccessible::Selection);
+				QAccessible::updateAccessibility(&selectEvent);
+			}
+		}
+	}
+	
 	update();
 }
 
@@ -4196,12 +4122,32 @@ void InnerWidget::selectSkipPage(int32 pixels, int32 direction) {
 		}
 	}
 	int accessibilityIndex = -1;
+
     if (_collapsedSelected >= 0) {
+        // If a collapsed row is selected
         accessibilityIndex = _collapsedSelected;
     } else if (_selected) {
-        accessibilityIndex = int(_shownList->cfind(_selected) - _shownList->cbegin());
+        // If a chat row is selected, calculate its index
+        auto it = _shownList->cfind(_selected);
+        if (it != _shownList->cend()) {
+            accessibilityIndex = int(_collapsedRows.size() + (it - _shownList->cbegin()));
+        }
     }
-    triggerAccessibilityEvent(accessibilityIndex);
+
+    if (const auto accessible = QAccessible::queryAccessibleInterface(this)) {
+        if (accessibilityIndex >= 0) {
+            // Get the child interface (from cache/new)
+            if (QAccessibleInterface *child = accessible->child(accessibilityIndex)) {
+                // Fire Focus and Selection events on the child object
+                QAccessibleEvent focusEvent(child, QAccessible::Focus);
+                QAccessible::updateAccessibility(&focusEvent);
+
+                QAccessibleEvent selectEvent(child, QAccessible::Selection);
+                QAccessible::updateAccessibility(&selectEvent);
+            }
+        }
+    }
+
 	scrollToDefaultSelected();
 	update();
 }
@@ -5073,5 +5019,336 @@ bool InnerWidget::jumpToDialogRow(RowDescriptor to) {
 rpl::producer<UserId> InnerWidget::openBotMainAppRequests() const {
 	return _openBotMainAppRequests.events();
 }
+
+void InnerWidget::setupAccessibility() {
+	QAccessible::installFactory(InnerWidgetFactory);
+}
+
+int InnerWidget::getAccessibleChildCount() const {
+	if (_state == WidgetState::Default) {
+		return _collapsedRows.size() + _shownList->size();
+	} else if (_state == WidgetState::Filtered) {
+		return _hashtagResults.size() 
+			+ _filterResults.size() 
+			+ _peerSearchResults.size() 
+			+ _previewResults.size() 
+			+ _searchResults.size();
+	}
+	return 0;
+}
+
+int InnerWidget::currentAccessibleIndex() const {
+    // Calculate which index is currently selected based on internal state variables
+	if (_state == WidgetState::Default) {
+		if (_collapsedSelected >= 0) return _collapsedSelected;
+		if (_selected) {
+            // Find index of _selected in _shownList
+			auto idx = 0;
+			for (auto it = _shownList->cbegin(); it != _shownList->cend(); ++it, ++idx) {
+				if (it->get() == _selected) return _collapsedRows.size() + idx;
+			}
+		}
+	} else if (_state == WidgetState::Filtered) {
+		int offset = 0;
+		if (_hashtagSelected >= 0) return offset + _hashtagSelected;
+		offset += _hashtagResults.size();
+		
+		if (_filteredSelected >= 0) return offset + _filteredSelected;
+		offset += _filterResults.size();
+		
+		if (_peerSearchSelected >= 0) return offset + _peerSearchSelected;
+		offset += _peerSearchResults.size();
+		
+		if (_previewSelected >= 0) return offset + _previewSelected;
+		offset += _previewResults.size();
+		
+		if (_searchedSelected >= 0) return offset + _searchedSelected;
+	}
+	return -1;
+}
+
+bool InnerWidget::isAccessibleRowSelected(int index) const {
+	return index == currentAccessibleIndex();
+}
+
+QRect InnerWidget::getAccessibleRect(int index) const {
+	int y = 0;
+	int h = 0;
+
+	if (_state == WidgetState::Default) {
+		if (index < _collapsedRows.size()) {
+			y = index * st::dialogsImportantBarHeight;
+			h = st::dialogsImportantBarHeight;
+		} else {
+			int listIndex = index - _collapsedRows.size();
+			auto it = _shownList->cbegin();
+			std::advance(it, listIndex); // Efficient iterator move
+			if (it != _shownList->cend()) {
+				Row* r = it->get();
+				y = dialogsOffset() + r->top();
+				// Add pinned offset
+				if (listIndex < _pinnedRows.size()) {
+					y += qRound(_pinnedRows[listIndex].yadd.current());
+				}
+				h = r->height();
+			}
+		}
+	} else if (_state == WidgetState::Filtered) {
+		int current = index;
+
+		if (current < _hashtagResults.size()) {
+			y = hashtagsOffset() + current * st::mentionHeight;
+			h = st::mentionHeight;
+            return QRect(0, y, width(), h);
+		}
+		current -= _hashtagResults.size();
+
+		if (current < _filterResults.size()) {
+			const auto &res = _filterResults[current];
+			y = filteredOffset() + res.top;
+			h = res.row->height();
+            return QRect(0, y, width(), h);
+		}
+		current -= _filterResults.size();
+
+		if (current < _peerSearchResults.size()) {
+			y = peerSearchOffset() + current * st::dialogsRowHeight;
+			h = st::dialogsRowHeight;
+            return QRect(0, y, width(), h);
+		}
+		current -= _peerSearchResults.size();
+
+		if (current < _previewResults.size()) {
+			y = previewOffset() + current * _st->height;
+			h = _st->height;
+            return QRect(0, y, width(), h);
+		}
+		current -= _previewResults.size();
+
+		if (current < _searchResults.size()) {
+			y = searchedOffset() + current * _st->height;
+			h = _st->height;
+            return QRect(0, y, width(), h);
+		}
+	}
+    
+    if (h > 0) return QRect(0, y, width(), h);
+	return QRect();
+}
+
+// Helper Function to generate the detailed text
+QString GenerateRowDescription(not_null<Dialogs::Entry*> entry, HistoryItem *item, bool isFiltered) {
+    QString result;
+
+    if (!isFiltered) {
+        if (const auto history = entry->asHistory()) {
+            const int unread = history->unreadCount();
+            if (unread > 0) {
+                result += QString("%1 unread messages. ").arg(unread);
+            }
+        } else if (const auto folder = entry->asFolder()) {
+            const int unread = folder->chatListBadgesState().unreadCounter;
+            if (unread > 0) {
+                result += QString("%1 unread messages. ").arg(unread);
+            }
+        }
+    }
+
+    if (item) {
+        const auto from = item->from();
+        const auto chatName = entry->chatListName();
+        
+        if (from && !from->isSelf() && from->name() != chatName) {
+            result += from->name() + ": ";
+        } else if (from && from->isSelf()) {
+            result += "You: ";
+        }
+
+        QString message = item->notificationText().text;
+        
+        message = message.replace(QChar('\n'), QChar(' '));
+        
+        const int kLimit = 50; 
+        if (message.length() > kLimit) {
+            result += message.left(kLimit) + "... read more. ";
+        } else if (!message.isEmpty()) {
+            result += message + ". ";
+        }
+
+        const auto timestamp = item->date();
+        const QDateTime dt = QDateTime::fromSecsSinceEpoch(timestamp);
+        const QDateTime now = QDateTime::currentDateTime();
+        const bool isToday = dt.date() == now.date();
+        const QString timeStr = dt.time().toString("h:mm AP");
+
+        const QString action = item->out() ? "Sent" : "Received";
+
+        if (isToday) {
+            result += QString(". %1 today at %2").arg(action).arg(timeStr);
+        } else {
+            const int day = dt.date().day();
+            QString suffix = "th";
+            if (day == 1 || day == 21 || day == 31) suffix = "st";
+            else if (day == 2 || day == 22) suffix = "nd";
+            else if (day == 3 || day == 23) suffix = "rd";
+            
+            result += QString(". %1 at %2, %3%4 of %5")
+                .arg(action)
+                .arg(timeStr)
+                .arg(day)
+                .arg(suffix)
+                .arg(dt.date().toString("MMMM"));
+        }
+    }
+
+    return result;
+}
+
+// Main Accessible Name Function
+
+QString InnerWidget::getAccessibleName(int index) const {
+	if (_state == WidgetState::Default) {
+		if (index < _collapsedRows.size()) {
+			return _collapsedRows[index]->folder->chatListName();
+		}
+		int listIndex = index - _collapsedRows.size();
+		auto it = _shownList->cbegin();
+		std::advance(it, listIndex);
+		if (it != _shownList->cend()) {
+			return it->get()->entry()->chatListName();
+		}
+	} else if (_state == WidgetState::Filtered) {
+		int current = index;
+		
+		if (current < _hashtagResults.size()) return "#" + _hashtagResults[current]->tag;
+		current -= _hashtagResults.size();
+		
+		if (current < _filterResults.size()) return _filterResults[current].row->entry()->chatListName();
+		current -= _filterResults.size();
+		
+		if (current < _peerSearchResults.size()) return _peerSearchResults[current]->peer->name();
+		current -= _peerSearchResults.size();
+		
+		if (current < _previewResults.size()) return _previewResults[current]->name().toString();
+		current -= _previewResults.size();
+		
+		if (current < _searchResults.size()) return _searchResults[current]->name().toString();
+	}
+	return QString();
+}
+
+// Main Accessible Description Function 
+QString InnerWidget::getAccessibleDescription(int index) const {
+	if (_state == WidgetState::Default) {
+		// 1. Collapsed Row (Archive)
+		if (index < _collapsedRows.size()) {
+			return GenerateRowDescription(_collapsedRows[index]->folder, nullptr, false);
+		}
+		
+		// 2. Main Chat List
+		int listIndex = index - _collapsedRows.size();
+		auto it = _shownList->cbegin();
+		std::advance(it, listIndex);
+		
+		if (it != _shownList->cend()) {
+			Row* r = it->get();
+			HistoryItem* lastMsg = r->history() ? r->history()->lastMessage() : nullptr;
+			return GenerateRowDescription(r->entry(), lastMsg, false);
+		}
+	} else if (_state == WidgetState::Filtered) {
+		int current = index;
+		
+		if (current < _hashtagResults.size()) return "Hashtag result";
+		current -= _hashtagResults.size();
+		
+		if (current < _filterResults.size()) {
+			Row* r = _filterResults[current].row.get();
+			HistoryItem* lastMsg = r->history() ? r->history()->lastMessage() : nullptr;
+			return GenerateRowDescription(r->entry(), lastMsg, true);
+		}
+		current -= _filterResults.size();
+		
+		if (current < _peerSearchResults.size()) {
+			return "Global Search Result. " + _peerSearchResults[current]->peer->username();
+		}
+		current -= _peerSearchResults.size();
+		
+		if (current < _previewResults.size()) {
+			return GenerateRowDescription(
+				_previewResults[current]->item()->history(), 
+				_previewResults[current]->item(), 
+				true);
+		}
+		current -= _previewResults.size();
+		
+		if (current < _searchResults.size()) {
+			return GenerateRowDescription(
+				_searchResults[current]->item()->history(), 
+				_searchResults[current]->item(), 
+				true);
+		}
+	}
+	return QString();
+}
+
+
+int InnerWidget::getAccessibleIndexAt(int y) const {
+	if (_state == WidgetState::Default) {
+		// 1. Check Collapsed Rows (Top)
+		const int collapsedHeight = _collapsedRows.size() * st::dialogsImportantBarHeight;
+		if (y < collapsedHeight) {
+			return y / st::dialogsImportantBarHeight;
+		}
+
+		// 2. Check Main List
+		int listY = y - dialogsOffset();
+		
+		if (listY >= 0 && listY < _shownList->height()) {
+			auto it = _shownList->findByY(listY);
+			if (it != _shownList->cend()) {
+				int indexInList = it->get()->index();
+				return _collapsedRows.size() + indexInList;
+			}
+		}
+	} else if (_state == WidgetState::Filtered) {
+		int currentY = 0;
+		int index = 0;
+
+		// Helper to iterate a list
+		auto checkList = [&](int count, int itemHeight) -> int {
+			int height = count * itemHeight;
+			if (y >= currentY && y < currentY + height) {
+				return index + (y - currentY) / itemHeight;
+			}
+			currentY += height;
+			index += count;
+			return -1;
+		};
+
+		int found = checkList(_hashtagResults.size(), st::mentionHeight);
+		if (found != -1) return found;
+
+		for (const auto &res : _filterResults) {
+			int h = res.row->height();
+			if (y >= currentY && y < currentY + h) return index;
+			currentY += h;
+			index++;
+		}
+
+		currentY = peerSearchOffset();
+		found = checkList(_peerSearchResults.size(), st::dialogsRowHeight);
+		if (found != -1) return found;
+
+		currentY = previewOffset();
+		found = checkList(_previewResults.size(), _st->height);
+		if (found != -1) return found;
+
+		currentY = searchedOffset();
+		found = checkList(_searchResults.size(), _st->height);
+		if (found != -1) return found;
+	}
+	return -1;
+}
+
 
 } // namespace Dialogs
