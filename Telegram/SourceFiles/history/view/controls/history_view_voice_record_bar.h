@@ -113,6 +113,13 @@ public:
 	[[nodiscard]] bool isActive() const;
 	[[nodiscard]] bool isRecordingByAnotherBar() const;
 	[[nodiscard]] bool isTTLButtonShown() const;
+	[[nodiscard]] bool isPaused() const;
+
+    [[nodiscard]] not_null<Ui::AbstractButton*> levelButton() const;
+
+	// Delete and Play/Pause buttons must also use AbstractButton*
+	[[nodiscard]] Ui::AbstractButton* playPauseButton() const;
+	[[nodiscard]] Ui::AbstractButton* deleteButton() const;
 
 private:
 	enum class StopType {

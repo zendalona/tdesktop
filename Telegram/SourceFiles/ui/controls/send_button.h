@@ -63,6 +63,7 @@ private:
 	void paintSend(QPainter &p, bool over);
 	void paintSchedule(QPainter &p, bool over);
 	void paintSlowmode(QPainter &p);
+	void paintFocusOutline(QPainter &p);
 
 	bool _heldActive = false;
 	const style::SendButton &_st;

@@ -535,6 +535,13 @@ public:
 	[[nodiscard]] std::shared_ptr<Ui::DynamicImage> videoPreview();
 
 	[[nodiscard]] rpl::lifetime &lifetime();
+	[[nodiscard]] Ui::AbstractButton* deleteButton() const {
+        return _delete.get(); 
+    }
+    
+    [[nodiscard]] Ui::AbstractButton* playPauseButton() const {
+        return _playPauseButton.get();
+    }
 
 private:
 	void init();
@@ -613,6 +620,8 @@ void ListenWrap::init() {
 		return value == 1.;
 	}) | rpl::distinct_until_changed();
 	_delete->showOn(std::move(deleteShow));
+	_delete->setFocusPolicy(Qt::StrongFocus);
+	_delete->setAccessibleName("delete");
 
 	_parent->sizeValue(
 	) | rpl::start_with_next([=](QSize size) {
@@ -1369,6 +1378,8 @@ VoiceRecordBar::VoiceRecordBar(
 	resize(QSize(parent->width(), descriptor.recorderHeight));
 	init();
 	hideFast();
+	_level->setFocusPolicy(Qt::StrongFocus);
+	_level->setAccessibleName("level");
 }
 
 VoiceRecordBar::VoiceRecordBar(
@@ -2427,6 +2438,26 @@ bool VoiceRecordBar::createVideoRecorder() {
 	}, _videoCapturerLifetime);
 
 	return true;
+}
+
+
+//  Level Button (Pause/Send)
+not_null<Ui::AbstractButton*> VoiceRecordBar::levelButton() const {
+    return static_cast<Ui::AbstractButton*>(_level.get());
+}
+
+//  Delete Button 
+Ui::AbstractButton* VoiceRecordBar::deleteButton() const {
+    return _listen ? _listen->deleteButton() : nullptr; 
+}
+
+// Inside VoiceRecordBar::playPauseButton() const
+Ui::AbstractButton* VoiceRecordBar::playPauseButton() const {
+    return _listen ? _listen->playPauseButton() : nullptr;
+}
+
+bool VoiceRecordBar::isPaused() const {
+    return _paused.current(); 
 }
 
 } // namespace HistoryView::Controls

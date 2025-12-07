@@ -178,6 +178,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtGui/QWindow>
 #include <QtCore/QMimeData>
 #include <QAccessible>
+#include <QApplication>
+#include <QTimer>
+#include <iostream>
 
 
 namespace {
@@ -356,35 +359,29 @@ HistoryWidget::HistoryWidget(
 			!Core::App().settings().recordVideoMessages());
 		updateSendButtonType();
 	}, lifetime());
-	
-	_send->held(
-	) | rpl::start_with_next([=] {
+
+	_send->held() | rpl::start_with_next([=] {
 		if (_send->type() == Ui::SendButton::Type::Record) {
-			// 1. Command the recording to start.
-			_voiceRecordBar->startRecording();
-	
-			// 2. Now, listen for the 'recordingStateChanges' signal from the bar.
-			_voiceRecordBar->recordingStateChanges(
-			) | rpl::filter([](bool active) {
-				// We only care about the moment it becomes active.
-				return active;
-			}) | rpl::take(1) | rpl::start_with_next([=] {
-				// 3. ONCE it's active, set the focus and lock it.
-				_send->setFocus();
-				_voiceRecordBar->lockForKeyboard();
-			}, _voiceRecordBar->lifetime());
-		}
-	}, lifetime());
-		
-		
-	
-	_send->released() | rpl::start_with_next([=] {
-		if (_voiceRecordBar->isActive()) {
-			_voiceRecordBar->stop(true); 
+			if (!_voiceRecordBar->isActive()) {
+				_voiceRecordBar->startRecording(); 
+			}
 		}
 	}, lifetime());
 
-	
+	_send->released() | rpl::start_with_next([=] {
+		if (_voiceRecordBar->isActive()) {
+			// If currently recording, RELEASE means PAUSE.
+			_voiceRecordBar->pauseForKeyboard(); 
+			
+		} 
+		else if (_voiceRecordBar->isPaused()) { // Assumes a isPaused() accessor exists
+			// If currently paused, RELEASE means SEND.
+			_voiceRecordBar->stop(true);
+			// ANNOUNCEMENT: AnnounceStatus("Recording sent.")
+			
+			
+		}
+	}, lifetime());
 	
 
 	_mediaEditManager.updateRequests() | rpl::start_with_next([this] {
@@ -1973,11 +1970,14 @@ void HistoryWidget::activate() {
 }
 
 void HistoryWidget::setInnerFocus() {
+	const bool voiceBarIsVisible = (isRecording() || (_voiceRecordBar && _voiceRecordBar->isPaused()));
 	if (_list) {
 		if (isSearching()) {
 			_composeSearch->setInnerFocus();
 		} else if (isChoosingTheme()) {
 			_chooseTheme->setFocus();
+		}else if(voiceBarIsVisible){
+			_send->setFocus();
 		} else if (_showAnimation
 			|| _nonEmptySelection
 			|| (_list && _list->wasSelectedText())
@@ -6982,23 +6982,41 @@ void HistoryWidget::jumpToReply(FullReplyTo to) {
 }
 
 void HistoryWidget::keyPressEvent(QKeyEvent *e) {
-	if (!_history) return;
+    if (!_history) return;
 
-	 const auto commonModifiers = e->modifiers() & kCommonModifiers;
-	 if (_voiceRecordBar && _voiceRecordBar->isActive()) {
-		_voiceRecordBar->lockForKeyboard();
-        if (e->key() == Qt::Key_D) { 
-            _voiceRecordBar->stop(false); 
-            return;
-        } else if (e->key() == Qt::Key_Space && !(e->modifiers() & kCommonModifiers)) {
-            _voiceRecordBar->pauseForKeyboard(); 
-            return;
-        } else if (e->key() == Qt::Key_O) {
-             _voiceRecordBar->toggleTTL(); 
-             return;
+    // Print current recording state regardless of the key being handled
+    const bool barExists = !!_voiceRecordBar;
+    const bool isActive = barExists ? _voiceRecordBar->isActive() : false;
+    const bool isPaused = barExists ? _voiceRecordBar->isPaused() : false;
+
+
+     const auto commonModifiers = e->modifiers() & kCommonModifiers;
+    if (_voiceRecordBar) {
+        
+        const bool recordingOrPaused = _voiceRecordBar->isActive() || _voiceRecordBar->isPaused();
+
+        if (recordingOrPaused) {
+            // Note: deleteBtn and focusedWidget are defined here but not used, 
+            // as the Enter key block that used them has been removed.
+            const auto deleteBtn = _voiceRecordBar.get()->deleteButton();
+            const auto focusedWidget = QApplication::focusWidget();
+
+            if (e->key() == Qt::Key_Delete) {           
+                _voiceRecordBar->stop(false);
+				_field->setFocus();
+                return;
+            }
+
+            if (e->key() == Qt::Key_Space && !(e->modifiers() & kCommonModifiers)) {
+                _voiceRecordBar->pauseForKeyboard(); 
+                if (const auto playPauseBtn = _voiceRecordBar->playPauseButton()) {
+                    playPauseBtn->setFocus();
+                }
+                return;
+            }
+
         }
     }
-
 	
 	if (e->key() == Qt::Key_Escape) {
 		if (hasFocus()) {
@@ -9111,6 +9129,20 @@ void HistoryWidget::synteticScrollToY(int y) {
 	}
 	_synteticScrollEvent = false;
 }
+
+// void HistoryWidget::AnnounceStatus(const QString &text) {
+//     if (auto widget = static_cast<QWidget*>(this)) {
+        
+//         // FIX: Create the event object on the heap using 'new'
+//         QAccessibleEvent *event = new QAccessibleEvent(
+//             widget, 
+//             QAccessible::Alert
+//         );
+    
+//         QAccessible::updateAccessibility(event); 
+        
+//     }
+// }
 
 HistoryWidget::~HistoryWidget() {
 	if (_history) {

@@ -37,7 +37,11 @@ SendButton::SendButton(QWidget *parent, const style::SendButton &st)
 
 void SendButton::keyPressEvent(QKeyEvent *e) {
     if (e->key() == Qt::Key_Enter || e->key() == Qt::Key_Return) {
-        if (!e->isAutoRepeat() && !_keyHoldTimer.isActive()) {
+        if (e->isAutoRepeat()) { 
+            return;
+        }
+        
+        if (!_keyHoldTimer.isActive()) {
             _keyHoldTimer.callOnce(300);
         }
     } else { RippleButton::keyPressEvent(e); }
@@ -138,6 +142,7 @@ void SendButton::paintRecord(QPainter &p, bool over) {
 		? _st.record
 		: _st.recordOver;
 	icon.paintInCenter(p, rect());
+	paintFocusOutline(p);
 }
 
 void SendButton::paintRound(QPainter &p, bool over) {
@@ -152,6 +157,7 @@ void SendButton::paintRound(QPainter &p, bool over) {
 		? _st.round
 		: _st.roundOver;
 	icon.paintInCenter(p, rect());
+	paintFocusOutline(p);
 }
 
 void SendButton::paintSave(QPainter &p, bool over) {
@@ -171,6 +177,7 @@ void SendButton::paintCancel(QPainter &p, bool over) {
 		? st::historyReplyCancelIconOver
 		: st::historyReplyCancelIcon;
 	cancelIcon.paintInCenter(p, rect());
+	paintFocusOutline(p);
 }
 
 void SendButton::paintSend(QPainter &p, bool over) {
@@ -181,6 +188,7 @@ void SendButton::paintSend(QPainter &p, bool over) {
 	} else {
 		sendIcon.paint(p, st::historySendIconPosition, width());
 	}
+	paintFocusOutline(p);
 }
 
 void SendButton::paintSchedule(QPainter &p, bool over) {
@@ -239,6 +247,19 @@ QPoint SendButton::prepareRippleStartPosition() const {
 	const auto size = _st.inner.rippleAreaSize;
 	const auto y = (height() - _st.inner.rippleAreaSize) / 2;
 	return real - QPoint((width() - size) / 2, y);
+}
+
+void SendButton::paintFocusOutline(QPainter &p) {
+    if (hasFocus()) {
+        const QColor focusColor = Qt::black; 
+        const int width = 2; 
+        
+        p.setPen(QPen(focusColor, width));
+        p.setBrush(Qt::NoBrush);
+        
+        // Draw the rectangle adjusted inwards by half the line width
+        p.drawRect(rect().adjusted(width / 2, width / 2, -width / 2, -width / 2));
+    }
 }
 
 } // namespace Ui
