@@ -5682,6 +5682,13 @@ void HistoryWidget::fieldFocused() {
 	if (_list) {
 		_list->clearSelected(true);
 	}
+	QTimer::singleShot(0, this, [=] {   
+        if (_field) {        
+            _field->setAccessibleName(QStringLiteral("Message input field")); 
+            QAccessibleEvent event(_field.data(), QAccessible::Focus);
+            QAccessible::updateAccessibility(&event);
+        }
+    });
 }
 
 void HistoryWidget::updateFieldPlaceholder() {
