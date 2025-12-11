@@ -1,27 +1,27 @@
-/*
-This file is part of Telegram Desktop.
-*/
 #pragma once
 
 #include <QAccessibleWidget>
 
-namespace HistoryView {
-class Element;
-} // namespace HistoryView
+class HistoryInner;
 
 namespace HistoryView::Accessibility {
 
-class InnerAccessible final : public QAccessibleWidget {
+class InnerAccessible : public QAccessibleWidget {
 public:
-    explicit InnerAccessible(QWidget *widget);
+    explicit InnerAccessible(HistoryInner *widget);
 
     int childCount() const override;
     QAccessibleInterface *child(int index) const override;
     int indexOfChild(const QAccessibleInterface *child) const override;
+    
     QAccessibleInterface *focusChild() const override;
+    QAccessibleInterface *childAt(int x, int y) const override;
 
-    QString text(QAccessible::Text t) const override;
     QAccessible::Role role() const override;
+    QAccessible::State state() const override;
+    
+private:
+    HistoryInner *_inner = nullptr;
 };
 
 } // namespace HistoryView::Accessibility

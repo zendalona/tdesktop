@@ -97,6 +97,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_audio_msg_id.h"
 #include "media/player/media_player_instance.h"
 
+#include "history/view/accessibility/history_item_accessible.h"
 #include <QtGui/QClipboard>
 #include <QtWidgets/QApplication>
 #include <QtCore/QMimeData>
@@ -396,6 +397,7 @@ HistoryInner::HistoryInner(
 		return (_history == history);
 	}) | rpl::start_with_next([this] {
 		mouseActionCancel();
+		invalidateAccessibleCache();
 	}, lifetime());
 	session().data().viewRepaintRequest(
 	) | rpl::start_with_next([this](not_null<const Element*> view) {
@@ -635,6 +637,7 @@ void HistoryInner::messagesReceived(
 			_migrated->addNewerSlice(QVector<MTPMessage>());
 		}
 	}
+	invalidateAccessibleCache();
 }
 
 void HistoryInner::messagesReceivedDown(
@@ -1953,6 +1956,8 @@ void HistoryInner::itemRemoved(not_null<const HistoryItem*> item) {
 		_scrollDateLastItem = nullptr;
 	}
 	mouseActionUpdate();
+	_accessibleCache.clear();
+	invalidateAccessibleCache();
 }
 
 void HistoryInner::viewRemoved(not_null<const Element*> view) {
@@ -1965,6 +1970,7 @@ void HistoryInner::viewRemoved(not_null<const Element*> view) {
 	refresh(_dragSelFrom);
 	refresh(_dragSelTo);
 	refresh(_scrollDateLastItem);
+	invalidateAccessibleCache();
 }
 
 void HistoryInner::mouseActionFinish(
@@ -4850,60 +4856,45 @@ std::vector<HistoryView::Element*> HistoryInner::accessibleElements() const {
     return result;
 }
 
-void HistoryInner::setKeyNavElement(Element *element) {
-    if (_keyNavElement == element) {
-        return;
-    }
-	// 1. Store the old pointer in a temporary variable.
-    const auto oldKeyNavElement = _keyNavElement;
+void HistoryInner::setKeyNavElement(Element *element)
+{
+	if (_keyNavElement == element)
+	{
+		return;
+	}
+	const auto oldKeyNavElement = _keyNavElement;
+	_keyNavElement = element;
 
-    // 2. Immediately update the main pointer.
-    _keyNavElement = element;
+	repaintItem(oldKeyNavElement);
+	repaintItem(_keyNavElement);
 
-    // 3. Now, safely repaint using the old and new pointers.
-    repaintItem(oldKeyNavElement);
-    repaintItem(_keyNavElement);
-	
+	if (_keyNavElement)
+	{
+		ensureElementVisible(_keyNavElement);
+	}
 
-    // // Repaint the old and new elements to update their focus highlight.
-    // repaintItem(_keyNavElement);
-    // _keyNavElement = element;
-    // repaintItem(_keyNavElement);
+	// --- ACCESSIBILITY FIX ---
+	// Use the O(1) helper we added, not the slow accessibleElements()
+	if (const auto accessible = QAccessible::queryAccessibleInterface(this))
+	{
+		const auto index = currentAccessibleIndex(); // Fast lookup
+		if (index >= 0)
+		{
+			// Get the child proxy
+			if (QAccessibleInterface *child = accessible->child(index))
+			{
 
-    if (_keyNavElement) {
-        ensureElementVisible(_keyNavElement);
-    }
+				// 1. Fire Focus on the CHILD
+				QAccessibleEvent focusEvent(child, QAccessible::Focus);
+				QAccessible::updateAccessibility(&focusEvent);
 
-	if (auto parentInterface = QAccessible::queryAccessibleInterface(this)) {
-        // Find the index of our newly focused element.
-        const auto elements = accessibleElements();
-        const auto it = std::find(elements.cbegin(), elements.cend(), _keyNavElement);
-
-        if (it != elements.cend()) {
-            const int index = std::distance(elements.cbegin(), it);
-            // Get the accessible child for that index.
-            if (auto childInterface = parentInterface->child(index)) {
-				// 1. First, send focus for the parent list itself.
-				{
-					QAccessibleEvent parentFocus(parentInterface, QAccessible::Focus);
-					QAccessible::updateAccessibility(&parentFocus);
-				}
-			
-				// 2. Then send focus for the child (the actual list item).
-				{
-					QAccessibleEvent childFocus(childInterface, QAccessible::Focus);
-					QAccessible::updateAccessibility(&childFocus);
-				}
-			
-				// 3. Also send a Selection event to make Orca treat it as the active item.
-				{
-					QAccessibleEvent selectEvent(childInterface, QAccessible::Selection);
-					QAccessible::updateAccessibility(&selectEvent);
-				}
+				// 2. Fire Selection on the CHILD (Critical for reading)
+				QAccessibleEvent selectEvent(child, QAccessible::Selection);
+				QAccessible::updateAccessibility(&selectEvent);
 			}
-			
-        }
-    }
+		}
+	}
+
 }
 
 void HistoryInner::ensureElementVisible(Element *element) {
@@ -5102,4 +5093,258 @@ bool CanSendReply(not_null<const HistoryItem*> item) {
 		? Data::CanSendAnything(topic)
 		: (Data::CanSendAnything(peer)
 			&& (!peer->isChannel() || peer->asChannel()->amIn()));
+}
+// ACCESSIBILITY HELPERS START
+
+void HistoryInner::updateAccessibleCache() const
+{
+	// Only rebuild if dirty
+	if (!_accessibleCacheDirty)
+		return;
+
+	_accessibleCache.clear();
+
+	// Check if history exists before accessing
+	if (!_history)
+	{
+		_accessibleCacheDirty = false;
+		return;
+	}
+
+	// Helper to gather visible items
+	const auto gather = [&](History *history)
+	{
+		if (!history)
+			return;
+		for (const auto &block : history->blocks)
+		{
+			for (const auto &message : block->messages)
+			{
+				// Ensure message pointer is valid and visible
+				if (message && !message->isHidden())
+				{
+					_accessibleCache.push_back(message.get());
+				}
+			}
+		}
+	};
+
+	if (_migrated)
+		gather(_migrated);
+	gather(_history);
+
+	_accessibleCacheDirty = false;
+}
+
+int HistoryInner::getAccessibleChildCount() const
+{
+	updateAccessibleCache();
+	return _accessibleCache.size();
+}
+
+int HistoryInner::currentAccessibleIndex() const
+{
+	if (!_keyNavElement)
+		return -1;
+	updateAccessibleCache();
+
+	// Fast lookup in cached vector
+	auto it = std::find(_accessibleCache.begin(), _accessibleCache.end(), _keyNavElement);
+	if (it != _accessibleCache.end())
+	{
+		return std::distance(_accessibleCache.begin(), it);
+	}
+	return -1;
+}
+
+QRect HistoryInner::getAccessibleRect(int index) const
+{
+	updateAccessibleCache();
+	if (index < 0 || index >= _accessibleCache.size())
+		return QRect();
+
+	auto element = _accessibleCache[index];
+	int top = itemTop(element);
+	return QRect(0, top, width(), element->height());
+}
+
+// Used for Hit Testing (Mouse/Touch)
+int HistoryInner::getAccessibleIndexAt(int y) const
+{
+	updateAccessibleCache();
+	auto it = std::lower_bound(_accessibleCache.begin(), _accessibleCache.end(), y,
+							   [&](Element *elem, int val)
+							   {
+								   return (itemTop(elem) + elem->height()) < val;
+							   });
+
+	if (it != _accessibleCache.end())
+	{
+		int idx = std::distance(_accessibleCache.begin(), it);
+		int top = itemTop(*it);
+		if (y >= top && y < top + (*it)->height())
+		{
+			return idx;
+		}
+	}
+	return -1;
+}
+
+QString HistoryInner::getAccessibleName(int index) const
+{
+	updateAccessibleCache();
+	if (index < 0 || index >= _accessibleCache.size())
+		return QString();
+
+	auto element = _accessibleCache[index];
+
+	// For the specific case of "Single Item Loaded" + "Esc Key", we verify the pointer validity.
+	if (_accessibleCache.size() <= 5)
+	{
+		bool found = false;
+		if (_history && !_history->isEmpty())
+		{
+			for (const auto &block : _history->blocks)
+			{
+				for (const auto &msg : block->messages)
+				{
+					if (msg.get() == element)
+					{
+						found = true;
+						break;
+					}
+				}
+				if (found)
+					break;
+			}
+		}
+
+		if (!found)
+		{
+			// Pointer is dead. Mark cache dirty and abort.
+			const_cast<HistoryInner *>(this)->_accessibleCacheDirty = true;
+			return QString();
+		}
+	}
+
+	auto item = element->data();
+
+	if (item->out())
+		return "You";
+	if (auto from = item->displayFrom())
+		return from->name();
+	return "Unknown";
+}
+
+QString HistoryInner::getAccessibleDescription(int index) const
+{
+	updateAccessibleCache();
+	if (index < 0 || index >= _accessibleCache.size())
+		return QString();
+
+	auto element = _accessibleCache[index];
+	auto item = element->data();
+
+	QStringList parts;
+
+	//1. Date
+	if (element->displayDate())
+	{
+		const auto timestamp = item->date();
+		const QDateTime dt = QDateTime::fromSecsSinceEpoch(timestamp);
+		const QDateTime now = QDateTime::currentDateTime();
+
+		if (dt.date() == now.date())
+		{
+			parts.append("Today");
+		}
+		else
+		{
+			const int day = dt.date().day();
+			QString suffix = "th";
+			if (day == 1 || day == 21 || day == 31)
+				suffix = "st";
+			else if (day == 2 || day == 22)
+				suffix = "nd";
+			else if (day == 3 || day == 23)
+				suffix = "rd";
+
+			// Format: "15th of December"
+			QString dateStr = QString("%1%2 of %3").arg(day).arg(suffix).arg(dt.date().toString("MMMM"));
+
+			// Add year only if not current year
+			if (dt.date().year() != now.date().year())
+			{
+				dateStr += QString(", %1").arg(dt.date().year());
+			}
+			parts.append(dateStr);
+		}
+	}
+
+	//2. Content & Time
+	if (item->isService())
+	{
+		parts.append(element->text().toString());
+	}
+	else
+	{
+		const auto media = item->media();
+		bool isVoice = false;
+
+		if (media)
+		{
+			if (const auto doc = media->document())
+			{
+				if (doc->isVoiceMessage())
+				{
+					isVoice = true;
+					int totalSeconds = doc->duration() / 1000;
+					// Format: mm:ss
+					QString durationStr = QString("%1:%2")
+											  .arg(totalSeconds / 60)
+											  .arg(totalSeconds % 60, 2, 10, QChar('0'));
+
+					parts.append(QString("Voice Message, %1").arg(durationStr));
+				}
+			}
+
+			if (!isVoice && media->photo())
+			{
+				parts.append("Photo");
+			}
+		}
+
+		// Get text content
+		QString text = item->notificationText().text;
+
+		// notificationText() returns "Voice Message" for voice notes.
+		// we skip adding this generic text to prevent reading it twice.
+		bool isGenericVoiceText = (text.compare("Voice Message", Qt::CaseInsensitive) == 0) || (text.compare("Voice message", Qt::CaseInsensitive) == 0);
+
+		if (!isVoice || !isGenericVoiceText)
+		{
+			if (!text.isEmpty())
+				parts.append(text);
+		}
+
+		// Time
+		const auto timestamp = item->date();
+		const QDateTime dt = QDateTime::fromSecsSinceEpoch(timestamp);
+		const QString timeStr = dt.time().toString("h:mm AP");
+		const QString action = item->out() ? "Sent" : "Received";
+		parts.append(QString("%1 at %2").arg(action).arg(timeStr));
+	}
+
+	// 3. Status
+	if (item->out() && item->history()->outboxReadTillId() >= item->id)
+	{
+		parts.append("Seen");
+	}
+
+	return parts.join(", ");
+}
+
+bool HistoryInner::isAccessibleItemSelected(int index) const
+{
+	return index == currentAccessibleIndex();
 }

@@ -237,6 +237,14 @@ public:
 	void clearKeyNavElement() { setKeyNavElement(nullptr); }
 	std::vector<HistoryView::Element*> visibleAccessibleElements() const;
 	void toggleKeyNavElementSelection(); 
+
+	[[nodiscard]] int getAccessibleChildCount() const;
+    [[nodiscard]] int currentAccessibleIndex() const;
+    [[nodiscard]] int getAccessibleIndexAt(int y) const;
+    [[nodiscard]] QRect getAccessibleRect(int index) const;
+    [[nodiscard]] QString getAccessibleName(int index) const;
+    [[nodiscard]] QString getAccessibleDescription(int index) const;
+    [[nodiscard]] bool isAccessibleItemSelected(int index) const;
 	
 
 	
@@ -266,6 +274,15 @@ private:
 	void setKeyNavElement(Element *element);
     void ensureElementVisible(Element *element);
     void handleFocusedElementActivation();
+
+	// Cache
+    mutable std::vector<Element*> _accessibleCache;
+    mutable bool _accessibleCacheDirty = true;
+    void updateAccessibleCache() const;
+    void invalidateAccessibleCache() { 
+        _accessibleCacheDirty = true; 
+        _accessibleCache.clear(); 
+    }
 	
 
 	[[nodiscard]] static int SelectionViewOffset(

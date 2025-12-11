@@ -7044,6 +7044,8 @@ void HistoryWidget::keyPressEvent(QKeyEvent *e) {
 				inner->navigateDown();
 			}
 		}
+		e->accept(); 
+        return;
 	} else if (e->key() == Qt::Key_Up && !commonModifiers) {
 		const auto inner = qobject_cast<HistoryInner*>(_scroll->widget());
 		
@@ -7069,10 +7071,12 @@ void HistoryWidget::keyPressEvent(QKeyEvent *e) {
 			// If the shortcut didn't apply, start navigating.
 			if (inner) {
 				// THE CRITICAL FIX: Give the list focus BEFORE navigating.
-				inner->setFocus();
+				// inner->setFocus();
 				inner->navigateUp();
 			}
 		}
+		e->accept(); 
+        return;
 	} else if (e->key() == Qt::Key_Up
 		&& commonModifiers == Qt::ControlModifier) {
 		if (!replyToPreviousMessage()) {

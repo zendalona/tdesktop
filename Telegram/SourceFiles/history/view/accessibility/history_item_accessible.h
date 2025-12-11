@@ -1,75 +1,42 @@
 #pragma once
 
 #include <QAccessibleInterface>
+#include <QRect>
 
 class HistoryInner;
 
-namespace HistoryView {
-class Element;
-} // namespace HistoryView
-
 namespace HistoryView::Accessibility {
 
-class ItemAccessible final : public QAccessibleInterface {
+class ItemAccessible : public QAccessibleInterface {
 public:
-    ItemAccessible(
-        not_null<Element*> element,
-        const HistoryInner* parentWidget);
+    ItemAccessible(HistoryInner *parent, int index);
 
-    // QAccessibleInterface required overrides
-    bool isValid() const override;
-    QAccessibleInterface *parent() const override;
-    int childCount() const override;
-    QAccessibleInterface *child(int index) const override;
-    int indexOfChild(const QAccessibleInterface *child) const override;
+    // QAccessibleInterface overrides
     QObject *object() const override;
+    bool isValid() const override;
+    QAccessibleInterface *child(int index) const override;
+    int childCount() const override;
+    int indexOfChild(const QAccessibleInterface *child) const override;
+    QAccessibleInterface *parent() const override;
+    
+    // Geometry & Hit Testing
+    QRect rect() const override;
+    QAccessibleInterface *childAt(int x, int y) const override;
+
+    // Text & State
+    QString text(QAccessible::Text t) const override;
+    void setText(QAccessible::Text t, const QString &text) override;
     QAccessible::Role role() const override;
     QAccessible::State state() const override;
-    QString text(QAccessible::Text t) const override;
-    QRect rect() const override;
+    
     void *interface_cast(QAccessible::InterfaceType t) override;
-    QAccessibleInterface *childAt(int x, int y) const override;
-    void setText(QAccessible::Text t, const QString &text) override;
 
-    not_null<Element*> element() const {
-        return _element;
-    }
-    const HistoryInner* parentWidget() const {
-        return _parentWidget;
-    }
+    // Direct access to index
+    int index() const { return _index; }
 
 private:
-    
-    class VoiceNoteButtonAccessible final : public QAccessibleInterface {
-    public:
-        VoiceNoteButtonAccessible(
-            not_null<Element*> element,
-            not_null<ItemAccessible*> parent);
-
-        bool isValid() const override;
-        QAccessibleInterface *parent() const override;
-        int childCount() const override;
-        QAccessibleInterface *child(int index) const override;
-        int indexOfChild(const QAccessibleInterface *child) const override;
-        QObject *object() const override;
-        QAccessible::Role role() const override;
-        QAccessible::State state() const override;
-        QString text(QAccessible::Text t) const override;
-        QRect rect() const override;
-        void *interface_cast(QAccessible::InterfaceType t) override;
-        QAccessibleInterface *childAt(int x, int y) const override;
-        void setText(QAccessible::Text t, const QString &text) override;
-
-    private:
-        const not_null<Element*> _element;
-        const not_null<ItemAccessible*> _parent;
-
-    }; 
-
-    
-    const not_null<Element*> _element;
-    QPointer<const HistoryInner> _parentWidget;
-
+    HistoryInner *_parent = nullptr;
+    int _index = -1;
 };
 
 } // namespace HistoryView::Accessibility
