@@ -50,6 +50,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_media_player.h"
 
 #include <tgcalls/VideoCaptureInterface.h>
+#include <iostream>
+#include <QApplication>
 
 namespace HistoryView::Controls {
 namespace {
@@ -2336,14 +2338,39 @@ void VoiceRecordBar::installListenStateFilter() {
 			const auto isSpace = (key == Qt::Key_Space);
 			const auto isEnter = (key == Qt::Key_Enter
 				|| key == Qt::Key_Return);
+			const auto focusedWidget = QApplication::focusWidget();
 			if (isSpace && !keyEvent->isAutoRepeat() && _listen) {
 				_listen->playPause();
 				return Result::Cancel;
 			}
-			if (isEnter && !_warningShown) {
-				requestToSendWithOptions({});
-				return Result::Cancel;
-			}
+
+			if (isEnter) {
+                const auto deleteBtn = deleteButton();
+                const auto playPauseBtn = _listen ? _listen->playPauseButton() : nullptr;
+                
+                // A. Check for Play/Pause Focus
+                if (playPauseBtn && (focusedWidget == playPauseBtn)) {
+                    _listen->playPause(); 
+                    return Result::Cancel; // Handled: Play/Pause
+                }
+
+                // B. Check for Delete Button Focus (DISCARD INTENT)
+                const bool focusIsOnDeleteButton = (deleteBtn && (focusedWidget == deleteBtn 
+                                                                || (focusedWidget && focusedWidget->parentWidget() == deleteBtn)));
+                
+                if (focusIsOnDeleteButton) {
+                    stop(false); // Discard
+                    return Result::Cancel; // Handled: Discard
+                } 
+                
+                // C. Default Action: SEND (if note is paused)
+                else if (!_warningShown) {
+                    // This is the original core logic that handles sending when Enter is pressed
+                    // and focus is anywhere else (like the input field, which implies send).
+                    requestToSendWithOptions({}); 
+                    return Result::Cancel; // Handled: Send
+                }
+            }
 			return Result::Continue;
 		}
 		default: return Result::Continue;
