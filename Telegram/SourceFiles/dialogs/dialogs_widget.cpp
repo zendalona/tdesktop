@@ -90,7 +90,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QTimer>
 #include <QAccessible>
 #include <QAccessibleEvent>
-#include <QAccessibleTableModelChangeEvent>
 
 namespace Dialogs {
 namespace {
@@ -758,27 +757,24 @@ void Widget::chosenRow(const ChosenRow &row) {
 				Window::SectionShow::Way::ClearStack);
 			hideChildList();
 		}
-} else if (const auto folder = row.key.folder()) {
-        if (row.newWindow) {
-            controller()->showInNewWindow(Window::SeparateId(
-                Window::SeparateType::Archive,
-                &session()));
-            return;
-        }
-
-        controller()->openFolder(folder);
-        hideChildList();
-
-        if (QAccessible::isActive()) {
-            QTimer::singleShot(300, this, [this] {
-                QAccessibleTableModelChangeEvent modelEvent(this, QAccessibleTableModelChangeEvent::ModelReset);
-                QAccessible::updateAccessibility(&modelEvent);
-
-                QAccessibleEvent focusEvent(this, QAccessible::Focus);
-                QAccessible::updateAccessibility(&focusEvent);
-            });
-        }
-    }
+	} else if (const auto folder = row.key.folder()) {
+		if (row.userpicClick) {
+			const auto list = Data::StorySourcesList::Hidden;
+			const auto &sources = session().data().stories().sources(list);
+			if (!sources.empty()) {
+				controller()->openPeerStories(sources.front().id, list);
+				return;
+			}
+		}
+		if (row.newWindow) {
+			controller()->showInNewWindow(Window::SeparateId(
+				Window::SeparateType::Archive,
+				&session()));
+			return;
+		}
+		controller()->openFolder(folder);
+		hideChildList();
+	}
 	if (row.filteredRow && !session().supportMode()) {
 		if (_subsectionTopBar) {
 			_subsectionTopBar->toggleSearch(false, anim::type::instant);
@@ -2110,43 +2106,33 @@ void Widget::slideFinished() {
 }
 
 void Widget::escape() {
-    if (!cancelSearch({ .jumpBackToSearchedChat = true })) {
-        if (const auto forum = controller()->shownForum().current()) {
-            const auto id = controller()->windowId();
-            const auto initial = id.forum();
-            if (!initial) {
-                controller()->closeForum();
-            } else if (initial != forum) {
-                controller()->showForum(initial);
-            }
+	if (!cancelSearch({ .jumpBackToSearchedChat = true })) {
+		if (const auto forum = controller()->shownForum().current()) {
+			const auto id = controller()->windowId();
+			const auto initial = id.forum();
+			if (!initial) {
+				controller()->closeForum();
+			} else if (initial != forum) {
+				controller()->showForum(initial);
+			}
 		} else if (controller()->openedFolder().current()) {
-            if (!controller()->windowId().folder()) {
-                controller()->closeFolder();
-
-                if (QAccessible::isActive()) {
-                    QTimer::singleShot(300, this, [this] {
-                        QAccessibleTableModelChangeEvent modelEvent(this, QAccessibleTableModelChangeEvent::ModelReset);
-                        QAccessible::updateAccessibility(&modelEvent);
-
-                        QAccessibleEvent focusEvent(this, QAccessible::Focus);
-                        QAccessible::updateAccessibility(&focusEvent);
-                    });
-                }
-            }
-		}else if (controller()->activeChatEntryCurrent().key) {
-            controller()->content()->dialogsCancelled();
-        } else if (controller()->isPrimary()) {
-            const auto filters = &session().data().chatsFilters();
-            const auto &list = filters->list();
-            const auto first = list.empty() ? FilterId() : list.front().id();
-            if (controller()->activeChatsFilterCurrent() != first) {
-                controller()->setActiveChatsFilter(first);
-            }
-        }
-    } else if (!_searchState.inChat
-        && controller()->activeChatEntryCurrent().key) {
-        controller()->content()->dialogsCancelled();
-    }
+			if (!controller()->windowId().folder()) {
+				controller()->closeFolder();
+			}
+		} else if (controller()->activeChatEntryCurrent().key) {
+			controller()->content()->dialogsCancelled();
+		} else if (controller()->isPrimary()) {
+			const auto filters = &session().data().chatsFilters();
+			const auto &list = filters->list();
+			const auto first = list.empty() ? FilterId() : list.front().id();
+			if (controller()->activeChatsFilterCurrent() != first) {
+				controller()->setActiveChatsFilter(first);
+			}
+		}
+	} else if (!_searchState.inChat
+		&& controller()->activeChatEntryCurrent().key) {
+		controller()->content()->dialogsCancelled();
+	}
 }
 
 void Widget::submit() {
