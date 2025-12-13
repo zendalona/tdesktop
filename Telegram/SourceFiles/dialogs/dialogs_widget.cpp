@@ -778,11 +778,18 @@ void Widget::chosenRow(const ChosenRow &row) {
         hideChildList();
 
         if (QAccessible::isActive()) {
+            // 1. Set the name of the list to "Archived Chats" (or folder name)
+            if (folder->id() == Data::Folder::kId) {
+                _inner->setAccessibleName(tr::lng_archived_name(tr::now));
+            } else {
+                _inner->setAccessibleName(folder->chatListName());
+            }
+
             QTimer::singleShot(300, this, [this] {
-                QAccessibleTableModelChangeEvent modelEvent(this, QAccessibleTableModelChangeEvent::ModelReset);
+                QAccessibleTableModelChangeEvent modelEvent(_inner, QAccessibleTableModelChangeEvent::ModelReset);
                 QAccessible::updateAccessibility(&modelEvent);
 
-                QAccessibleEvent focusEvent(this, QAccessible::Focus);
+                QAccessibleEvent focusEvent(_inner, QAccessible::Focus);
                 QAccessible::updateAccessibility(&focusEvent);
             });
         }
@@ -2132,11 +2139,13 @@ void Widget::escape() {
                 controller()->closeFolder();
 
                 if (QAccessible::isActive()) {
+                    _inner->setAccessibleName("chat list");
+
                     QTimer::singleShot(300, this, [this] {
-                        QAccessibleTableModelChangeEvent modelEvent(this, QAccessibleTableModelChangeEvent::ModelReset);
+                        QAccessibleTableModelChangeEvent modelEvent(_inner, QAccessibleTableModelChangeEvent::ModelReset);
                         QAccessible::updateAccessibility(&modelEvent);
 
-                        QAccessibleEvent focusEvent(this, QAccessible::Focus);
+                        QAccessibleEvent focusEvent(_inner, QAccessible::Focus);
                         QAccessible::updateAccessibility(&focusEvent);
                     });
                 }
