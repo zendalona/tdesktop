@@ -1957,6 +1957,9 @@ void VoiceRecordBar::stop(bool send) {
 		return;
 	}
 	const auto ttlBeforeHide = peekTTLState();
+	if (!send) {
+        _cancelRequests.fire({}); 
+    }
 	auto disappearanceCallback = [=] {
 		hide();
 

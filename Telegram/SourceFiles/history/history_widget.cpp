@@ -1143,10 +1143,14 @@ void HistoryWidget::initVoiceRecordBar() {
 			data.video,
 			action);
 		_voiceRecordBar->clearListenState();
+		_field->setFocus();
 	}, lifetime());
 
 	_voiceRecordBar->cancelRequests(
-	) | rpl::start_with_next(applyLocalDraft, lifetime());
+    ) | rpl::start_with_next([=] {
+        applyLocalDraft();
+        _field->setFocus();
+    }, lifetime());
 
 	_voiceRecordBar->lockShowStarts(
 	) | rpl::start_with_next([=] {
@@ -1202,6 +1206,17 @@ void HistoryWidget::initVoiceRecordBar() {
 
 	_voiceRecordBar->recordingStateChanges(
 	) | rpl::start_with_next([=](bool active) {
+		if (!active && _voiceRecordBar->isListenState()) {
+            auto play = _voiceRecordBar->playPauseButton();
+            auto del = _voiceRecordBar->deleteButton();
+            
+            if (play && del) {
+				QWidget::setTabOrder(_attachToggle, play);
+                QWidget::setTabOrder(play, _send.get());
+                QWidget::setTabOrder(_send.get(), del);
+				QWidget::setTabOrder(del, _scroll);
+            }
+        }
 		controller()->widget()->setInnerFocus();
 	}, lifetime());
 
@@ -1977,7 +1992,9 @@ void HistoryWidget::setInnerFocus() {
 		} else if (isChoosingTheme()) {
 			_chooseTheme->setFocus();
 		}else if(voiceBarIsVisible){
-			_send->setFocus();
+			if (_voiceRecordBar && _voiceRecordBar->isRecording()) {
+				_send->setFocus();
+			}
 		} else if (_showAnimation
 			|| _nonEmptySelection
 			|| (_list && _list->wasSelectedText())
