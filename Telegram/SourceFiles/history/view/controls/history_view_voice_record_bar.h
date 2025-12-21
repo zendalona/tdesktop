@@ -86,8 +86,6 @@ public:
 	void hideAnimated();
 	void hideFast();
 	void clearListenState();
-	void lockForKeyboard();
-	void toggleTTL();
 
 	void orderControls();
 

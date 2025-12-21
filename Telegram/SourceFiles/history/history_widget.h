@@ -369,7 +369,6 @@ private:
 	bool cornerButtonsUnreadMayBeShown() override;
 	bool cornerButtonsHas(HistoryView::CornerButtonType type) override;
 
-	// void AnnounceStatus(const QString &text);
 	void updateButtonFocusPolicies();
 	void checkSuggestToGigagroup();
 	void processReply();

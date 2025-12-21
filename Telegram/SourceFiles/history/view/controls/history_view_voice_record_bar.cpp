@@ -1820,20 +1820,6 @@ void VoiceRecordBar::pauseForKeyboard() {
     // This calls the internal pause function with 'Listen', which you
     stopRecording(StopType::Listen);
 }
-void VoiceRecordBar::lockForKeyboard() {
-    // lock the record to enable once
-    if (_lock && !_lock->isLocked()) {
-        _lock->clicked(Qt::NoModifier, Qt::LeftButton);
-    }
-}
-
-void VoiceRecordBar::toggleTTL() {
-    if (_ttlButton && _ttlButton->isVisible()) {
-        _ttlButton->clicked(Qt::NoModifier, Qt::LeftButton);
-    }
-}
-
-
 
 void VoiceRecordBar::startRecording() {
 	if (isRecording()) {

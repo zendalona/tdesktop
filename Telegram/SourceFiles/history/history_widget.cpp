@@ -7008,23 +7008,12 @@ void HistoryWidget::jumpToReply(FullReplyTo to) {
 void HistoryWidget::keyPressEvent(QKeyEvent *e) {
     if (!_history) return;
 
-    // Print current recording state regardless of the key being handled
-    const bool barExists = !!_voiceRecordBar;
-    const bool isActive = barExists ? _voiceRecordBar->isActive() : false;
-    const bool isPaused = barExists ? _voiceRecordBar->isPaused() : false;
-
-
      const auto commonModifiers = e->modifiers() & kCommonModifiers;
     if (_voiceRecordBar) {
         
         const bool recordingOrPaused = _voiceRecordBar->isActive() || _voiceRecordBar->isPaused();
 
         if (recordingOrPaused) {
-            // Note: deleteBtn and focusedWidget are defined here but not used, 
-            // as the Enter key block that used them has been removed.
-            const auto deleteBtn = _voiceRecordBar.get()->deleteButton();
-            const auto focusedWidget = QApplication::focusWidget();
-
             if (e->key() == Qt::Key_Delete) {           
                 _voiceRecordBar->stop(false);
 				_field->setFocus();
@@ -9157,20 +9146,6 @@ void HistoryWidget::synteticScrollToY(int y) {
 	}
 	_synteticScrollEvent = false;
 }
-
-// void HistoryWidget::AnnounceStatus(const QString &text) {
-//     if (auto widget = static_cast<QWidget*>(this)) {
-        
-//         // FIX: Create the event object on the heap using 'new'
-//         QAccessibleEvent *event = new QAccessibleEvent(
-//             widget, 
-//             QAccessible::Alert
-//         );
-    
-//         QAccessible::updateAccessibility(event); 
-        
-//     }
-// }
 
 HistoryWidget::~HistoryWidget() {
 	if (_history) {
