@@ -202,7 +202,7 @@ Widget::Widget(
 	hidePlaylistOn(_rightControls);
 
 	setType(AudioMsgId::Type::Song);
-	setAccessibleName(qsl("Media Player"));
+	setAccessibleName(tr::lng_acc_player(tr::now));
 	if (_previousTrack) {
 		_previousTrack->setFocusPolicy(Qt::StrongFocus);
 	}
@@ -214,9 +214,9 @@ Widget::Widget(
 	// _volumeToggle->setFocusPolicy(Qt::StrongFocus);
 	// _speedToggle->setFocusPolicy(Qt::StrongFocus);
 	_close->setFocusPolicy(Qt::StrongFocus);
-	_volumeToggle->setAccessibleName(qsl("Volume"));
-	_speedToggle->setAccessibleName(qsl("Playback Speed"));
-	_close->setAccessibleName(qsl("Close Player"));
+	_volumeToggle->setAccessibleName(tr::lng_acc_player_volume(tr::now));
+	_speedToggle->setAccessibleName(tr::lng_acc_player_speed(tr::now));
+	_close->setAccessibleName(tr::lng_acc_player_close(tr::now));
 
 	_nameLabel->setFocusPolicy(Qt::StrongFocus);
 	_timeLabel->setFocusPolicy(Qt::NoFocus);
@@ -674,8 +674,9 @@ void Widget::handleSongUpdate(const TrackState &state) {
 		: nullptr);
 
 	const auto isPlaying = ShowPauseIcon(state.state);
-	_playPause->setAccessibleName(
-	isPlaying ? qsl("Pause") : qsl("Play"));
+	_playPause->setAccessibleName(isPlaying 
+		? tr::lng_acc_player_pause(tr::now) 
+		: tr::lng_acc_player_play(tr::now));
 
 	updateTimeText(state);
 }
@@ -802,13 +803,13 @@ void Widget::handlePlaylistUpdate() {
 
 		_previousTrack->setDisabled(!previousEnabled);
         _previousTrack->setAccessibleName(previousEnabled
-            ? qsl("Previous Track")
-            : qsl("No Previous Track"));
+			? tr::lng_acc_player_previous(tr::now)
+			: tr::lng_acc_player_none_previous(tr::now));
 
         _nextTrack->setDisabled(!nextEnabled);
         _nextTrack->setAccessibleName(nextEnabled
-            ? qsl("Next Track")
-            : qsl("No Next Track"));
+			? tr::lng_acc_player_next(tr::now)
+			: tr::lng_acc_player_none_next(tr::now));
 	}
 }
 

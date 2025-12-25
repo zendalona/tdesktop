@@ -71,24 +71,25 @@ PhoneWidget::PhoneWidget(
             widget->setAccessibleName(name);
             widget->setAccessibleDescription(description);
         }
-    };
+	};
+		
 
-    setAccessibleText(
-        _country,
-        "Choose a country",
-        "Opens a list of countries to select from.");
-		_country->setFocusPolicy(Qt::StrongFocus);
-		_country->setObjectName("countryButton");
-
-    setAccessibleText(
-        _code,
-        "Country code",
-        "Your country's international dialing code. This is filled in automatically when you select a country.");
-
-    setAccessibleText(
-        _phone,
-        "Phone number",
-        "Enter your phone number here, without the country code.");
+		setAccessibleText(
+			_country,
+			tr::lng_acc_intro_country_name(tr::now),
+			tr::lng_acc_intro_country_desc(tr::now));
+			_country->setFocusPolicy(Qt::StrongFocus);
+			_country->setObjectName("countryButton");
+		
+		setAccessibleText(
+			_code,
+			tr::lng_acc_intro_code_name(tr::now),
+			tr::lng_acc_intro_code_desc(tr::now));
+		
+		setAccessibleText(
+			_phone,
+			tr::lng_acc_intro_phone_name(tr::now),
+			tr::lng_acc_intro_phone_desc(tr::now));
    
 	_phone->frontBackspaceEvent(
 	) | rpl::start_with_next([=](not_null<QKeyEvent*> e) {
@@ -161,12 +162,10 @@ void PhoneWidget::setupQrLogin() {
 		tr::lng_phone_to_qr(tr::now));
 	qrLogin->show();
 
-	 // --- START OF ACCESSIBILITY SETUP ---
-	 qrLogin->setAccessibleName("Quick Log in using QR Code");
+	qrLogin->setAccessibleName(tr::lng_acc_intro_qr_login(tr::now));
 	//  qrLogin->setAccessibleDescription("Switches to the alternative login method using a QR code.");
 	 qrLogin->setFocusPolicy(Qt::StrongFocus);
 	 qrLogin->setObjectName("qrlogin");
-	 // --- END OF ACCESSIBILITY SETUP ---
 
 	DEBUG_LOG(("PhoneWidget.qrLogin link created and shown."));
 

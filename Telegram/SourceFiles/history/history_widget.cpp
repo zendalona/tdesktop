@@ -1014,10 +1014,10 @@ HistoryWidget::HistoryWidget(
 	_scroll->setFocusPolicy(Qt::StrongFocus);
 
 	// Set accessible names for screen readers.
-	_field->setAccessibleName(QStringLiteral("Message input"));
-	_attachToggle->setAccessibleName(QStringLiteral("Attach"));
-	_send->setAccessibleName(QStringLiteral("Send"));
-	_scroll->setAccessibleName(QStringLiteral("Message history"));
+	_field->setAccessibleName(tr::lng_acc_msg_input(tr::now));
+	_attachToggle->setAccessibleName(tr::lng_acc_attach(tr::now));
+	_send->setAccessibleName(tr::lng_acc_send(tr::now));
+	_scroll->setAccessibleName(tr::lng_acc_msg_history(tr::now));
 
 	// Tab order: field -> attach -> send -> message history (then flows to search field and chat list)
 	QWidget::setTabOrder(_field, _attachToggle);
@@ -5092,13 +5092,13 @@ void HistoryWidget::updateSendButtonType() {
 	_send->setType(type);
 
 	if (type == Type::Record) {
-        _send->setAccessibleName("voice record ");
+        _send->setAccessibleName(tr::lng_acc_voice_record(tr::now));
         _send->setFocusPolicy(Qt::TabFocus);
     } else if (type == Type::Send) {
-        _send->setAccessibleName("send");
+        _send->setAccessibleName(tr::lng_acc_send(tr::now));
         _send->setFocusPolicy(Qt::TabFocus);
     } else {
-        _send->setAccessibleName("Round");
+        _send->setAccessibleName(tr::lng_acc_video_record(tr::now));
         _send->setFocusPolicy(Qt::TabFocus);
     }
 
@@ -5701,7 +5701,7 @@ void HistoryWidget::fieldFocused() {
 	}
 	QTimer::singleShot(0, this, [=] {   
         if (_field) {        
-            _field->setAccessibleName(QStringLiteral("Message input field")); 
+            _field->setAccessibleName(tr::lng_acc_msg_input(tr::now));
             QAccessibleEvent event(_field.data(), QAccessible::Focus);
             QAccessible::updateAccessibility(&event);
         }

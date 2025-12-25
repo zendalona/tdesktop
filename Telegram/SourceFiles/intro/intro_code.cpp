@@ -47,7 +47,7 @@ CodeWidget::CodeWidget(
 	_noTelegramCode->setFocusPolicy(Qt::StrongFocus);
     _noTelegramCode->setAccessibleName(tr::lng_code_no_telegram(tr::now));
     _noTelegramCode->setAccessibleDescription(
-        "Request the code to be sent again.");
+		tr::lng_acc_code_resend_desc(tr::now));
 	_noTelegramCode->addClickHandler([=] { noTelegramCode(); });
 
 	_code->setDigitsCountMax(getData()->codeLength);

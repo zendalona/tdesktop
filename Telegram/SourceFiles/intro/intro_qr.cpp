@@ -244,7 +244,7 @@ void QrWidget::setupControls() {
 	// --- ACCESSIBILITY: STAGE 1 --- (when QR code is being loaded)
     code->setFocusPolicy(Qt::StrongFocus);
     // Set the permanent name now, we will override it temporarily for announcements.
-    code->setAccessibleName("QR code loading ");
+    code->setAccessibleName(tr::lng_acc_qr_loading(tr::now));
     code->setAccessibleDescription(QString());
 
    _announcer = new QLabel(this);
@@ -273,11 +273,8 @@ void QrWidget::setupControls() {
         // Use a timer to sequence the "loaded" and "focus" announcements.
         QTimer::singleShot(0, code, [=] {
             // Announce that the code is now loaded.
-            code->setAccessibleName("QR code loaded. Ready to scan from mobile telegram.");
-            code->setAccessibleDescription(
-                "To log in, open Telegram on your phone. "
-                "Go to Settings, then Devices, then select Link Desktop Device. "
-                "Finally, scan the image shown here.");
+            code->setAccessibleName(tr::lng_acc_qr_loaded(tr::now));
+			code->setAccessibleDescription(tr::lng_acc_qr_instructions(tr::now));
 
 				code->setFocus();
 
@@ -287,7 +284,7 @@ void QrWidget::setupControls() {
             // --- ACCESSIBILITY: STAGE 3 (FINAL NAME RESET & FOCUS) ---
             QTimer::singleShot(2000, code, [=] {
                 // Reset the name back to its permanent value.
-                code->setAccessibleName("QR code to login");
+                code->setAccessibleName(tr::lng_acc_qr_label(tr::now));
                 code->setFocus();
             });
         });
@@ -359,8 +356,8 @@ void QrWidget::setupControls() {
 		this,
 		tr::lng_intro_qr_skip(tr::now));
 		skip->setFocusPolicy(Qt::StrongFocus);
-		skip->setAccessibleName(u"Log in by phone number"_q);
-		skip->setAccessibleDescription(u"log in using your phone number."_q);
+		skip->setAccessibleName(tr::lng_acc_qr_login_phone(tr::now));
+		skip->setAccessibleDescription(tr::lng_acc_qr_login_phone_desc(tr::now));
 		skip->setObjectName("skipButton");
 	rpl::combine(
 		sizeValue(),

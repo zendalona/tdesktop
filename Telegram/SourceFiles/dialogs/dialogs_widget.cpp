@@ -668,7 +668,7 @@ Widget::Widget(
 		toggleFiltersMenu(true);
 	}
 	if (_inner->state()== WidgetState::Default) {
-		setAccessibleName("ChatsList");
+		setAccessibleName(tr::lng_acc_chat_list(tr::now));
 	}	
 }
 
@@ -1399,8 +1399,7 @@ void Widget::processSearchFocusChange() {
 		if (_searchHasFocus) {
 			QTimer::singleShot(0, this, [=] {	
 				if (_search) { // Check if the widget still exists
-					_search->setAccessibleName("Search InputField Text");
-					_search->setAccessibleDescription(tr::lng_dlg_filter(tr::now));	
+					_search->setAccessibleName(tr::lng_acc_search_field(tr::now));
 					QAccessibleEvent event(_search, QAccessible::Focus);
 					QAccessible::updateAccessibility(&event);
 				}
@@ -2139,7 +2138,7 @@ void Widget::escape() {
                 controller()->closeFolder();
 
                 if (QAccessible::isActive()) {
-                    _inner->setAccessibleName("chat list");
+                    _inner->setAccessibleName(tr::lng_acc_chat_list(tr::now));
 
                     QTimer::singleShot(300, this, [this] {
                         QAccessibleTableModelChangeEvent modelEvent(_inner, QAccessibleTableModelChangeEvent::ModelReset);

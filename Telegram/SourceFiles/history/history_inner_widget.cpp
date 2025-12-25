@@ -465,7 +465,7 @@ HistoryInner::HistoryInner(
 
 	setupSharingDisallowed();
 	setupSwipeReply();
-	setAccessibleName("Message list");
+	setAccessibleName(tr::lng_acc_history_list(tr::now));
 }
 
 void HistoryInner::reactionChosen(const ChosenReaction &reaction) {
@@ -5230,10 +5230,10 @@ QString HistoryInner::getAccessibleName(int index) const
 	auto item = element->data();
 
 	if (item->out())
-		return "You";
+		return tr::lng_acc_sender_you(tr::now);
 	if (auto from = item->displayFrom())
 		return from->name();
-	return "Unknown";
+	return tr::lng_acc_sender_unknown(tr::now);
 }
 
 QString HistoryInner::getAccessibleDescription(int index) const
@@ -5256,7 +5256,7 @@ QString HistoryInner::getAccessibleDescription(int index) const
 
 		if (dt.date() == now.date())
 		{
-			parts.append("Today");
+			parts.append(tr::lng_acc_today(tr::now));
 		}
 		else
 		{
@@ -5269,8 +5269,11 @@ QString HistoryInner::getAccessibleDescription(int index) const
 			else if (day == 3 || day == 23)
 				suffix = "rd";
 
-			// Format: "15th of December"
-			QString dateStr = QString("%1%2 of %3").arg(day).arg(suffix).arg(dt.date().toString("MMMM"));
+			QString dateStr = tr::lng_acc_date_of(
+				tr::now, 
+				lt_day, QString::number(day), 
+				lt_suffix, suffix, 
+				lt_month, dt.date().toString("MMMM"));
 
 			// Add year only if not current year
 			if (dt.date().year() != now.date().year())
@@ -5304,13 +5307,13 @@ QString HistoryInner::getAccessibleDescription(int index) const
 											  .arg(totalSeconds / 60)
 											  .arg(totalSeconds % 60, 2, 10, QChar('0'));
 
-					parts.append(QString("Voice Message, %1").arg(durationStr));
+					parts.append(tr::lng_acc_voice_duration(tr::now, lt_duration, durationStr));
 				}
 			}
 
 			if (!isVoice && media->photo())
 			{
-				parts.append("Photo");
+				parts.append(tr::lng_acc_photo(tr::now));
 			}
 		}
 
@@ -5331,14 +5334,15 @@ QString HistoryInner::getAccessibleDescription(int index) const
 		const auto timestamp = item->date();
 		const QDateTime dt = QDateTime::fromSecsSinceEpoch(timestamp);
 		const QString timeStr = dt.time().toString("h:mm AP");
-		const QString action = item->out() ? "Sent" : "Received";
-		parts.append(QString("%1 at %2").arg(action).arg(timeStr));
+		parts.append(item->out() 
+    	? tr::lng_acc_sent_at(tr::now, lt_time, timeStr) 
+    	: tr::lng_acc_received_at(tr::now, lt_time, timeStr));
 	}
 
 	// 3. Status
 	if (item->out() && item->history()->outboxReadTillId() >= item->id)
 	{
-		parts.append("Seen");
+		parts.append(tr::lng_acc_status_seen(tr::now));
 	}
 
 	return parts.join(", ");

@@ -5935,4 +5935,83 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 "lng_mac_hold_to_quit" = "Hold {text} to Quit";
 
+// Accessibility Chat List
+"lng_acc_unread_count#one" = "{count} unread message. ";
+"lng_acc_unread_count#other" = "{count} unread messages. ";
+"lng_acc_sender_you" = "You: ";
+"lng_acc_read_more" = " ... read more. ";
+"lng_acc_msg_sent" = "Sent";
+"lng_acc_msg_received" = "Received";
+"lng_acc_hashtag_result" = "Hashtag result";
+"lng_acc_global_result" = "Global search result. ";
+"lng_acc_time_today" = "{action} today at {time}";
+"lng_acc_time_date" = "{action} at {time}, {day}{suffix} of {month}";
+"lng_acc_search_results" = "Search results";
+
+"lng_acc_chat_list" = "Chat list";
+"lng_acc_search_field" = "Search input field";
+"lng_acc_archived_chats" = "Archived chats";
+
+// Accessibility History
+"lng_acc_history_list" = "Message list";
+"lng_acc_sender_unknown" = "Unknown";
+"lng_acc_today" = "Today";
+"lng_acc_date_of" = "{day}{suffix} of {month}";
+"lng_acc_voice_duration" = "Voice Message, {duration}";
+"lng_acc_photo" = "Photo";
+"lng_acc_sent_at" = "Sent at {time}";
+"lng_acc_received_at" = "Received at {time}";
+"lng_acc_status_seen" = "Seen";
+
+// Accessibility History Widget
+"lng_acc_msg_input" = "Message input field";
+"lng_acc_attach" = "Attach";
+"lng_acc_send" = "Send";
+"lng_acc_msg_history" = "Message history";
+"lng_acc_voice_record" = "voice Record";
+"lng_acc_video_record" = "video Record";
+
+// Accessibility Voice Record Bar
+"lng_acc_voice_play" = "Play ";
+"lng_acc_voice_pause" = "Pause ";
+"lng_acc_voice_delete" = "Delete ";
+"lng_acc_voice_level" = "Recording level";
+
+// Accessibility Media Player
+"lng_acc_player" = "Media Player";
+"lng_acc_player_play" = "Play";
+"lng_acc_player_pause" = "Pause";
+"lng_acc_player_previous" = "Previous track";
+"lng_acc_player_next" = "Next track";
+"lng_acc_player_none_previous" = "No previous track";
+"lng_acc_player_none_next" = "No next track";
+"lng_acc_player_volume" = "Volume";
+"lng_acc_player_speed" = "Playback speed";
+"lng_acc_player_close" = "Close player";
+
+"lng_acc_code_resend_desc" = "Request the code to be sent again.";
+
+// Accessibility Intro (Phone Input)
+"lng_acc_intro_country_name" = "Choose a country";
+"lng_acc_intro_country_desc" = "Opens a list of countries to select from.";
+"lng_acc_intro_code_name" = "Country code";
+"lng_acc_intro_code_desc" = "Your country's international dialing code. This is filled in automatically when you select a country.";
+"lng_acc_intro_phone_name" = "Phone number";
+"lng_acc_intro_phone_desc" = "Enter your phone number here, without the country code.";
+"lng_acc_intro_qr_login" = "Quick Log in using QR Code";
+
+// Accessibility Intro (QR Login)
+"lng_acc_qr_loading" = "QR code loading";
+"lng_acc_qr_loaded" = "QR code loaded. Ready to scan from mobile Telegram.";
+"lng_acc_qr_instructions" = "To log in, open Telegram on your phone. Go to Settings, then Devices, then select Link Desktop Device. Finally, scan the image shown here.";
+"lng_acc_qr_label" = "QR code to login";
+"lng_acc_qr_login_phone" = "Log in by phone number";
+"lng_acc_qr_login_phone_desc" = "Use your phone number to log in instead of a QR code.";
+
+// Accessibility Intro General
+"lng_acc_intro_back_desc" = "Navigate to the previous page";
+"lng_acc_intro_settings_desc" = "Open settings menu";
+"lng_acc_intro_update_desc" = "Check for application updates";
+"lng_acc_intro_next" = "Next step";
+
 // Keys finished

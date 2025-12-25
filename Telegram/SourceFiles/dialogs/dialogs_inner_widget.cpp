@@ -5144,12 +5144,12 @@ QString GenerateRowDescription(not_null<Dialogs::Entry*> entry, HistoryItem *ite
         if (const auto history = entry->asHistory()) {
             const int unread = history->unreadCount();
             if (unread > 0) {
-                result += QString("%1 unread messages. ").arg(unread);
+                result += tr::lng_acc_unread_count(tr::now, lt_count, unread);
             }
         } else if (const auto folder = entry->asFolder()) {
             const int unread = folder->chatListBadgesState().unreadCounter;
             if (unread > 0) {
-                result += QString("%1 unread messages. ").arg(unread);
+                result += tr::lng_acc_unread_count(tr::now, lt_count, unread);
             }
         }
     }
@@ -5161,16 +5161,15 @@ QString GenerateRowDescription(not_null<Dialogs::Entry*> entry, HistoryItem *ite
         if (from && !from->isSelf() && from->name() != chatName) {
             result += from->name() + ": ";
         } else if (from && from->isSelf()) {
-            result += "You: ";
+            result += tr::lng_acc_sender_you(tr::now);
         }
 
         QString message = item->notificationText().text;
-        
         message = message.replace(QChar('\n'), QChar(' '));
         
         const int kLimit = 50; 
         if (message.length() > kLimit) {
-            result += message.left(kLimit) + "... read more. ";
+            result += message.left(kLimit) + tr::lng_acc_read_more(tr::now);
         } else if (!message.isEmpty()) {
             result += message + ". ";
         }
@@ -5181,10 +5180,12 @@ QString GenerateRowDescription(not_null<Dialogs::Entry*> entry, HistoryItem *ite
         const bool isToday = dt.date() == now.date();
         const QString timeStr = dt.time().toString("h:mm AP");
 
-        const QString action = item->out() ? "Sent" : "Received";
+        const QString action = item->out() 
+            ? tr::lng_acc_msg_sent(tr::now) 
+            : tr::lng_acc_msg_received(tr::now);
 
         if (isToday) {
-            result += QString(". %1 today at %2").arg(action).arg(timeStr);
+            result += tr::lng_acc_time_today(tr::now, lt_action, action, lt_time, timeStr);
         } else {
             const int day = dt.date().day();
             QString suffix = "th";
@@ -5192,15 +5193,15 @@ QString GenerateRowDescription(not_null<Dialogs::Entry*> entry, HistoryItem *ite
             else if (day == 2 || day == 22) suffix = "nd";
             else if (day == 3 || day == 23) suffix = "rd";
             
-            result += QString(". %1 at %2, %3%4 of %5")
-                .arg(action)
-                .arg(timeStr)
-                .arg(day)
-                .arg(suffix)
-                .arg(dt.date().toString("MMMM"));
+            result += tr::lng_acc_time_date(
+                tr::now, 
+                lt_action, action, 
+                lt_time, timeStr, 
+                lt_day, QString::number(day), 
+                lt_suffix, suffix, 
+                lt_month, dt.date().toString("MMMM"));
         }
     }
-
     return result;
 }
 
@@ -5258,7 +5259,7 @@ QString InnerWidget::getAccessibleDescription(int index) const {
 	} else if (_state == WidgetState::Filtered) {
 		int current = index;
 		
-		if (current < _hashtagResults.size()) return "Hashtag result";
+		if (current < _hashtagResults.size()) return tr::lng_acc_hashtag_result(tr::now);
 		current -= _hashtagResults.size();
 		
 		if (current < _filterResults.size()) {
@@ -5269,7 +5270,7 @@ QString InnerWidget::getAccessibleDescription(int index) const {
 		current -= _filterResults.size();
 		
 		if (current < _peerSearchResults.size()) {
-			return "Global Search Result. " + _peerSearchResults[current]->peer->username();
+			return tr::lng_acc_global_result(tr::now) + _peerSearchResults[current]->peer->username();
 		}
 		current -= _peerSearchResults.size();
 		

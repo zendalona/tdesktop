@@ -623,7 +623,7 @@ void ListenWrap::init() {
 	}) | rpl::distinct_until_changed();
 	_delete->showOn(std::move(deleteShow));
 	_delete->setFocusPolicy(Qt::StrongFocus);
-	_delete->setAccessibleName("delete");
+	_delete->setAccessibleName(tr::lng_acc_voice_play(tr::now));
 
 	_parent->sizeValue(
 	) | rpl::start_with_next([=](QSize size) {
@@ -759,7 +759,7 @@ void ListenWrap::initPlayButton() {
 	const auto &width = _waveformBgFinalCenterRect.height();
 	_playPauseButton->resize(width, width);
 	_playPauseButton->show();
-	_playPauseButton->setAccessibleName("Play"); // e.g., "Play"
+	_playPauseButton->setAccessibleName(tr::lng_acc_voice_play(tr::now));
 	_playPauseButton->setFocusPolicy(Qt::TabFocus);
 	crl::on_main(_playPauseButton.get(), [=] {
         _playPauseButton->setFocus();
@@ -789,8 +789,8 @@ void ListenWrap::initPlayButton() {
 			? PlayButtonLayout::State::Pause
 			: PlayButtonLayout::State::Play);
 			_playPauseButton->setAccessibleName(pause
-				? "Pause"   // e.g., "Pause"
-				: "Play");    // e.g., "Play"
+				? tr::lng_acc_voice_pause(tr::now)
+				: tr::lng_acc_voice_play(tr::now));
 	}, _lifetime);
 
 	instance()->updatedNotifier(
@@ -1381,7 +1381,7 @@ VoiceRecordBar::VoiceRecordBar(
 	init();
 	hideFast();
 	_level->setFocusPolicy(Qt::StrongFocus);
-	_level->setAccessibleName("level");
+	_level->setAccessibleName(tr::lng_acc_voice_level(tr::now));
 }
 
 VoiceRecordBar::VoiceRecordBar(
