@@ -5309,6 +5309,13 @@ QString HistoryInner::getAccessibleDescription(int index) const
 
 					parts.append(tr::lng_acc_voice_duration(tr::now, lt_duration, durationStr));
 				}
+				else
+				{
+					QString filename = doc->filename();
+					if (!filename.isEmpty()) {
+						parts.append(filename);
+					}
+				}
 			}
 
 			if (!isVoice && media->photo())
@@ -5318,9 +5325,8 @@ QString HistoryInner::getAccessibleDescription(int index) const
 		}
 
 		// Get text content
-		QString text = item->notificationText().text;
+		QString text = item->clipboardText().expanded;
 
-		// notificationText() returns "Voice Message" for voice notes.
 		// we skip adding this generic text to prevent reading it twice.
 		bool isGenericVoiceText = (text.compare("Voice Message", Qt::CaseInsensitive) == 0) || (text.compare("Voice message", Qt::CaseInsensitive) == 0);
 
