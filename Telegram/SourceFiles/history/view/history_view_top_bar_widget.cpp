@@ -232,6 +232,8 @@ TopBarWidget::TopBarWidget(
 	}, lifetime());
 
 	setCursor(style::cur_pointer);
+	_call->setFocusPolicy(Qt::StrongFocus);
+	_call->setAccessibleName(tr::lng_profile_action_short_call(tr::now));
 }
 
 TopBarWidget::~TopBarWidget() = default;
