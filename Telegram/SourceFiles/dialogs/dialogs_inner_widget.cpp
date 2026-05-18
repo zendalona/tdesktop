@@ -4559,6 +4559,30 @@ void InnerWidget::setState(WidgetState state) {
 	}
 }
 
+QString InnerWidget::filteredSectionHeaderText(int section) const {
+	switch (section) {
+	case 0: return {};
+	case 1: return {};
+	case 2: return tr::lng_search_global_results(tr::now);
+	case 3: return tr::lng_search_tab_public_posts(tr::now);
+	case 4: {
+		const auto showUnread = uniqueSearchResults();
+		if (showUnread) {
+			return u"Search results"_q;
+		} else if (_searchState.tab == ChatSearchTab::PublicPosts && !_searchIn) {
+			return _searchState.query.isEmpty()
+				? tr::lng_posts_subtitle_empty(tr::now)
+				: tr::lng_posts_subtitle(tr::now);
+		}
+		return tr::lng_search_found_results(
+			tr::now,
+			lt_count,
+			_searchedMigratedCount + _searchedCount);
+	}
+	}
+	return {};
+}
+
 void InnerWidget::selectSkip(int32 direction) {
 	clearMouseSelection();
 	if (_state == WidgetState::Default) {
@@ -4603,55 +4627,199 @@ void InnerWidget::selectSkip(int32 direction) {
 			&& _searchResults.empty()) {
 			return;
 		}
-		if ((_hashtagSelected < 0 || _hashtagSelected >= _hashtagResults.size())
-			&& (_filteredSelected < 0 || _filteredSelected >= _filterResults.size())
-			&& (_peerSearchSelected < 0 || _peerSearchSelected >= _peerSearchResults.size())
-			&& (_previewSelected < 0 || _previewSelected >= _previewResults.size())
-			&& (_searchedSelected < 0 || _searchedSelected >= _searchResults.size())) {
+		const auto srActive = Ui::ScreenReaderModeActive();
+		const auto nothingSelected = (_hashtagSelected < 0 || _hashtagSelected >= int(_hashtagResults.size()))
+			&& (_filteredSelected < 0 || _filteredSelected >= int(_filterResults.size()))
+			&& (_peerSearchSelected < 0 || _peerSearchSelected >= int(_peerSearchResults.size()))
+			&& (_previewSelected < 0 || _previewSelected >= int(_previewResults.size()))
+			&& (_searchedSelected < 0 || _searchedSelected >= int(_searchResults.size()))
+			&& (!srActive || _srHeaderSelected < 0 || _srHeaderSelected > 4);
+		if (nothingSelected) {
+			_srHeaderSelected = -1;
 			if (_hashtagResults.empty() && _filterResults.empty() && _peerSearchResults.empty() && _previewResults.empty()) {
-				_searchedSelected = 0;
+				if (srActive && !_searchResults.empty()) {
+					_srHeaderSelected = 4;
+					_searchedSelected = -1;
+				} else {
+					_searchedSelected = 0;
+				}
 			} else if (_hashtagResults.empty() && _filterResults.empty() && _peerSearchResults.empty()) {
-				_previewSelected = 0;
+				if (srActive && !_previewResults.empty()) {
+					_srHeaderSelected = 3;
+					_previewSelected = -1;
+				} else {
+					_previewSelected = 0;
+				}
 			} else if (_hashtagResults.empty() && _filterResults.empty()) {
-				_peerSearchSelected = 0;
+				if (srActive && !_peerSearchResults.empty()) {
+					_srHeaderSelected = 2;
+					_peerSearchSelected = -1;
+				} else {
+					_peerSearchSelected = 0;
+				}
 			} else if (_hashtagResults.empty()) {
 				_filteredSelected = 0;
 			} else {
 				_hashtagSelected = 0;
 			}
+		} else if (srActive && _srHeaderSelected >= 0) {
+			const auto savedHeader = _srHeaderSelected;
+			if (direction > 0) {
+				_srHeaderSelected = -1;
+				if (savedHeader == 2) {
+					_peerSearchSelected = 0;
+					_hashtagSelected = _filteredSelected = _previewSelected = _searchedSelected = -1;
+				} else if (savedHeader == 3) {
+					_previewSelected = 0;
+					_hashtagSelected = _filteredSelected = _peerSearchSelected = _searchedSelected = -1;
+				} else if (savedHeader == 4) {
+					_searchedSelected = 0;
+					_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = -1;
+				}
+			} else {
+				if (savedHeader == 2) {
+					if (!_filterResults.empty()) {
+						_srHeaderSelected = -1;
+						_filteredSelected = int(_filterResults.size()) - 1;
+						_hashtagSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					} else if (!_hashtagResults.empty()) {
+						_srHeaderSelected = -1;
+						_hashtagSelected = int(_hashtagResults.size()) - 1;
+						_filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					}
+				} else if (savedHeader == 3) {
+					if (!_peerSearchResults.empty()) {
+						_srHeaderSelected = -1;
+						_peerSearchSelected = int(_peerSearchResults.size()) - 1;
+						_hashtagSelected = _filteredSelected = _previewSelected = _searchedSelected = -1;
+					} else if (!_filterResults.empty()) {
+						_srHeaderSelected = -1;
+						_filteredSelected = int(_filterResults.size()) - 1;
+						_hashtagSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					} else if (!_hashtagResults.empty()) {
+						_srHeaderSelected = -1;
+						_hashtagSelected = int(_hashtagResults.size()) - 1;
+						_filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					}
+				} else if (savedHeader == 4) {
+					if (!_previewResults.empty()) {
+						_srHeaderSelected = -1;
+						_previewSelected = int(_previewResults.size()) - 1;
+						_hashtagSelected = _filteredSelected = _peerSearchSelected = _searchedSelected = -1;
+					} else if (!_peerSearchResults.empty()) {
+						_srHeaderSelected = -1;
+						_peerSearchSelected = int(_peerSearchResults.size()) - 1;
+						_hashtagSelected = _filteredSelected = _previewSelected = _searchedSelected = -1;
+					} else if (!_filterResults.empty()) {
+						_srHeaderSelected = -1;
+						_filteredSelected = int(_filterResults.size()) - 1;
+						_hashtagSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					} else if (!_hashtagResults.empty()) {
+						_srHeaderSelected = -1;
+						_hashtagSelected = int(_hashtagResults.size()) - 1;
+						_filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					}
+				}
+			}
 		} else {
+			_srHeaderSelected = -1;
 			int32 cur = base::in_range(_hashtagSelected, 0, _hashtagResults.size())
 				? _hashtagSelected
 				: base::in_range(_filteredSelected, 0, _filterResults.size())
-				? (_hashtagResults.size() + _filteredSelected)
+				? (int(_hashtagResults.size()) + _filteredSelected)
 				: base::in_range(_peerSearchSelected, 0, _peerSearchResults.size())
-				? (_peerSearchSelected + _filterResults.size() + _hashtagResults.size())
+				? (_peerSearchSelected + int(_filterResults.size()) + int(_hashtagResults.size()))
 				: base::in_range(_previewSelected, 0, _previewResults.size())
-				? (_previewSelected + _peerSearchResults.size() + _filterResults.size() + _hashtagResults.size())
-				: (_searchedSelected + _previewResults.size() + _peerSearchResults.size() + _filterResults.size() + _hashtagResults.size());
-			cur = std::clamp(
-				cur + direction,
-				0,
-				static_cast<int>(_hashtagResults.size()
-					+ _filterResults.size()
-					+ _peerSearchResults.size()
-					+ _previewResults.size()
-					+ _searchResults.size()) - 1);
-			if (cur < _hashtagResults.size()) {
-				_hashtagSelected = cur;
-				_filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
-			} else if (cur < _hashtagResults.size() + _filterResults.size()) {
-				_filteredSelected = cur - _hashtagResults.size();
-				_hashtagSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
-			} else if (cur < _hashtagResults.size() + _filterResults.size() + _peerSearchResults.size()) {
-				_peerSearchSelected = cur - _hashtagResults.size() - _filterResults.size();
-				_hashtagSelected = _filteredSelected = _previewSelected = _searchedSelected = -1;
-			} else if (cur < _hashtagResults.size() + _filterResults.size() + _peerSearchResults.size() + _previewResults.size()) {
-				_previewSelected = cur - _hashtagResults.size() - _filterResults.size() - _peerSearchResults.size();
-				_hashtagSelected = _filteredSelected = _peerSearchSelected = _searchedSelected = -1;
+				? (_previewSelected + int(_peerSearchResults.size()) + int(_filterResults.size()) + int(_hashtagResults.size()))
+				: (_searchedSelected + int(_previewResults.size()) + int(_peerSearchResults.size()) + int(_filterResults.size()) + int(_hashtagResults.size()));
+			const auto newCur = cur + direction;
+			const auto hashEnd = int(_hashtagResults.size());
+			const auto filterEnd = hashEnd + int(_filterResults.size());
+			const auto peerEnd = filterEnd + int(_peerSearchResults.size());
+			const auto previewEnd = peerEnd + int(_previewResults.size());
+			const auto searchEnd = previewEnd + int(_searchResults.size());
+
+			if (srActive) {
+				if (direction > 0) {
+					if (cur < hashEnd && newCur >= hashEnd && !_filterResults.empty()) {
+						_filteredSelected = 0;
+						_hashtagSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					} else if (cur < filterEnd && newCur >= filterEnd && !_peerSearchResults.empty()) {
+						_srHeaderSelected = 2;
+						_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					} else if (cur < peerEnd && newCur >= peerEnd && !_previewResults.empty()) {
+						_srHeaderSelected = 3;
+						_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					} else if (cur < previewEnd && newCur >= previewEnd && !_searchResults.empty()) {
+						_srHeaderSelected = 4;
+						_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					} else {
+						cur = std::clamp(newCur, 0, searchEnd - 1);
+						if (cur < hashEnd) {
+							_hashtagSelected = cur;
+							_filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+						} else if (cur < filterEnd) {
+							_filteredSelected = cur - hashEnd;
+							_hashtagSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+						} else if (cur < peerEnd) {
+							_peerSearchSelected = cur - filterEnd;
+							_hashtagSelected = _filteredSelected = _previewSelected = _searchedSelected = -1;
+						} else if (cur < previewEnd) {
+							_previewSelected = cur - peerEnd;
+							_hashtagSelected = _filteredSelected = _peerSearchSelected = _searchedSelected = -1;
+						} else {
+							_searchedSelected = cur - previewEnd;
+							_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = -1;
+						}
+					}
+				} else {
+					if (cur >= filterEnd && cur < peerEnd && newCur < filterEnd) {
+						_srHeaderSelected = 2;
+						_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					} else if (cur >= peerEnd && cur < previewEnd && newCur < peerEnd) {
+						_srHeaderSelected = 3;
+						_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					} else if (cur >= previewEnd && newCur < previewEnd) {
+						_srHeaderSelected = 4;
+						_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+					} else {
+						cur = std::clamp(newCur, 0, searchEnd - 1);
+						if (cur < hashEnd) {
+							_hashtagSelected = cur;
+							_filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+						} else if (cur < filterEnd) {
+							_filteredSelected = cur - hashEnd;
+							_hashtagSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+						} else if (cur < peerEnd) {
+							_peerSearchSelected = cur - filterEnd;
+							_hashtagSelected = _filteredSelected = _previewSelected = _searchedSelected = -1;
+						} else if (cur < previewEnd) {
+							_previewSelected = cur - peerEnd;
+							_hashtagSelected = _filteredSelected = _peerSearchSelected = _searchedSelected = -1;
+						} else {
+							_searchedSelected = cur - previewEnd;
+							_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = -1;
+						}
+					}
+				}
 			} else {
-				_searchedSelected = cur - _hashtagResults.size() - _filterResults.size() - _peerSearchResults.size() - _previewResults.size();
-				_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = -1;
+				cur = std::clamp(newCur, 0, searchEnd - 1);
+				if (cur < hashEnd) {
+					_hashtagSelected = cur;
+					_filteredSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+				} else if (cur < filterEnd) {
+					_filteredSelected = cur - hashEnd;
+					_hashtagSelected = _peerSearchSelected = _previewSelected = _searchedSelected = -1;
+				} else if (cur < peerEnd) {
+					_peerSearchSelected = cur - filterEnd;
+					_hashtagSelected = _filteredSelected = _previewSelected = _searchedSelected = -1;
+				} else if (cur < previewEnd) {
+					_previewSelected = cur - peerEnd;
+					_hashtagSelected = _filteredSelected = _peerSearchSelected = _searchedSelected = -1;
+				} else {
+					_searchedSelected = cur - previewEnd;
+					_hashtagSelected = _filteredSelected = _peerSearchSelected = _previewSelected = -1;
+				}
 			}
 		}
 		if (base::in_range(_hashtagSelected, 0, _hashtagResults.size())) {
@@ -4661,6 +4829,8 @@ void InnerWidget::selectSkip(int32 direction) {
 			const auto &result = _filterResults[_filteredSelected];
 			const auto from = filteredOffset() + result.top;
 			scrollToItem(from, result.row->height());
+		} else if (_srHeaderSelected == 2) {
+			scrollToItem(peerSearchOffset() - st::searchedBarHeight, st::searchedBarHeight);
 		} else if (base::in_range(_peerSearchSelected, 0, _peerSearchResults.size())) {
 			const auto from = peerSearchOffset()
 				+ _peerSearchSelected * st::dialogsRowHeight
@@ -4668,6 +4838,8 @@ void InnerWidget::selectSkip(int32 direction) {
 			const auto height = st::dialogsRowHeight
 				+ (_peerSearchSelected ? 0 : st::searchedBarHeight);
 			scrollToItem(from, height);
+		} else if (_srHeaderSelected == 3) {
+			scrollToItem(previewOffset() - st::searchedBarHeight, st::searchedBarHeight);
 		} else if (base::in_range(_previewSelected, 0, _previewResults.size())) {
 			const auto from = previewOffset()
 				+ _previewSelected * _st->height
@@ -4675,7 +4847,9 @@ void InnerWidget::selectSkip(int32 direction) {
 			const auto height = _st->height
 				+ (_previewSelected ? 0 : st::searchedBarHeight);
 			scrollToItem(from, height);
-		} else {
+		} else if (_srHeaderSelected == 4) {
+			scrollToItem(searchedOffset() - st::searchedBarHeight, st::searchedBarHeight);
+		} else if (base::in_range(_searchedSelected, 0, _searchResults.size())) {
 			const auto from = searchedOffset()
 				+ _searchedSelected * _st->height
 				+ (_searchedSelected ? 0 : -st::searchedBarHeight);
@@ -5747,7 +5921,8 @@ void InnerWidget::focusInEvent(QFocusEvent *e) {
 			|| base::in_range(_filteredSelected, 0, _filterResults.size())
 			|| base::in_range(_peerSearchSelected, 0, _peerSearchResults.size())
 			|| base::in_range(_previewSelected, 0, _previewResults.size())
-			|| base::in_range(_searchedSelected, 0, _searchResults.size());
+			|| base::in_range(_searchedSelected, 0, _searchResults.size())
+			|| (Ui::ScreenReaderModeActive() && _srHeaderSelected >= 2 && _srHeaderSelected <= 4);
 		if (!hasSelection) {
 			if (!_hashtagResults.empty()
 				|| !_filterResults.empty()
@@ -5774,6 +5949,12 @@ void InnerWidget::focusInEvent(QFocusEvent *e) {
 
 bool InnerWidget::processKeyDispatch(QKeyEvent *e) {
 	const auto previous = _selected;
+	const auto prevHashtag = _hashtagSelected;
+	const auto prevFiltered = _filteredSelected;
+	const auto prevPeer = _peerSearchSelected;
+	const auto prevPreview = _previewSelected;
+	const auto prevSearched = _searchedSelected;
+	const auto prevHeader = _srHeaderSelected;
 	if (e->key() == Qt::Key_Up) {
 		selectSkip(-1);
 	} else if (e->key() == Qt::Key_Down) {
@@ -5787,7 +5968,12 @@ bool InnerWidget::processKeyDispatch(QKeyEvent *e) {
 	}
 	const auto selectionChanged = (_state == WidgetState::Default)
 		? (_selected != previous)
-		: true;
+		: (_hashtagSelected != prevHashtag
+			|| _filteredSelected != prevFiltered
+			|| _peerSearchSelected != prevPeer
+			|| _previewSelected != prevPreview
+			|| _searchedSelected != prevSearched
+			|| _srHeaderSelected != prevHeader);
 	if (selectionChanged) {
 		announceSelectedFocus();
 	}
@@ -5826,17 +6012,27 @@ void InnerWidget::announceSelectedFocus() {
 		const auto peerCount = int(_peerSearchResults.size());
 		const auto previewCount = int(_previewResults.size());
 		const auto searchCount = int(_searchResults.size());
+		const auto peerHeader = !_peerSearchResults.empty() ? 1 : 0;
+		const auto previewHeader = !_previewResults.empty() ? 1 : 0;
+		const auto searchHeader = !_searchResults.empty() ? 1 : 0;
+
 		auto accIndex = -1;
-		if (base::in_range(_hashtagSelected, 0, hashCount)) {
+		if (_srHeaderSelected == 2 && peerHeader) {
+			accIndex = hashCount + filterCount;
+		} else if (_srHeaderSelected == 3 && previewHeader) {
+			accIndex = hashCount + filterCount + peerHeader + peerCount;
+		} else if (_srHeaderSelected == 4 && searchHeader) {
+			accIndex = hashCount + filterCount + peerHeader + peerCount + previewHeader + previewCount;
+		} else if (base::in_range(_hashtagSelected, 0, hashCount)) {
 			accIndex = _hashtagSelected;
 		} else if (base::in_range(_filteredSelected, 0, filterCount)) {
 			accIndex = hashCount + _filteredSelected;
 		} else if (base::in_range(_peerSearchSelected, 0, peerCount)) {
-			accIndex = hashCount + filterCount + _peerSearchSelected;
+			accIndex = hashCount + filterCount + peerHeader + _peerSearchSelected;
 		} else if (base::in_range(_previewSelected, 0, previewCount)) {
-			accIndex = hashCount + filterCount + peerCount + _previewSelected;
+			accIndex = hashCount + filterCount + peerHeader + peerCount + previewHeader + _previewSelected;
 		} else if (base::in_range(_searchedSelected, 0, searchCount)) {
-			accIndex = hashCount + filterCount + peerCount + previewCount + _searchedSelected;
+			accIndex = hashCount + filterCount + peerHeader + peerCount + previewHeader + previewCount + searchHeader + _searchedSelected;
 		}
 		if (accIndex >= 0) {
 			accessibilityChildNameChanged(accIndex);
@@ -5852,10 +6048,16 @@ Ui::AccessibilityState InnerWidget::accessibilityState() const {
 
 int InnerWidget::accessibilityChildCount() const {
 	if (_state == WidgetState::Filtered) {
+		const auto peerHeader = !_peerSearchResults.empty() ? 1 : 0;
+		const auto previewHeader = !_previewResults.empty() ? 1 : 0;
+		const auto searchHeader = !_searchResults.empty() ? 1 : 0;
 		return int(_hashtagResults.size())
 			+ int(_filterResults.size())
+			+ peerHeader
 			+ int(_peerSearchResults.size())
+			+ previewHeader
 			+ int(_previewResults.size())
+			+ searchHeader
 			+ int(_searchResults.size());
 	}
 	return _shownList->size();
@@ -5865,10 +6067,13 @@ QString InnerWidget::accessibilityChildName(int index) const {
 	if (_state == WidgetState::Filtered) {
 		const auto hashCount = int(_hashtagResults.size());
 		const auto filterCount = int(_filterResults.size());
+		const auto peerHeader = !_peerSearchResults.empty() ? 1 : 0;
 		const auto peerCount = int(_peerSearchResults.size());
+		const auto previewHeader = !_previewResults.empty() ? 1 : 0;
 		const auto previewCount = int(_previewResults.size());
+		const auto searchHeader = !_searchResults.empty() ? 1 : 0;
 		const auto searchCount = int(_searchResults.size());
-		const auto total = hashCount + filterCount + peerCount + previewCount + searchCount;
+		const auto total = hashCount + filterCount + peerHeader + peerCount + previewHeader + previewCount + searchHeader + searchCount;
 		if (index < 0 || index >= total) {
 			return {};
 		}
@@ -5876,12 +6081,18 @@ QString InnerWidget::accessibilityChildName(int index) const {
 			return QLatin1Char('#') + _hashtagResults[index]->tag;
 		} else if (index < hashCount + filterCount) {
 			return RowAccessibilityName(_filterResults[index - hashCount].row, _filterId);
-		} else if (index < hashCount + filterCount + peerCount) {
-			return PeerAccessibilityName(_peerSearchResults[index - hashCount - filterCount]->peer);
-		} else if (index < hashCount + filterCount + peerCount + previewCount) {
-			return FakeRowAccessibilityName(_previewResults[index - hashCount - filterCount - peerCount].get());
+		} else if (peerHeader && index == hashCount + filterCount) {
+			return filteredSectionHeaderText(2);
+		} else if (index < hashCount + filterCount + peerHeader + peerCount) {
+			return PeerAccessibilityName(_peerSearchResults[index - hashCount - filterCount - peerHeader]->peer);
+		} else if (previewHeader && index == hashCount + filterCount + peerHeader + peerCount) {
+			return filteredSectionHeaderText(3);
+		} else if (index < hashCount + filterCount + peerHeader + peerCount + previewHeader + previewCount) {
+			return FakeRowAccessibilityName(_previewResults[index - hashCount - filterCount - peerHeader - peerCount - previewHeader].get());
+		} else if (searchHeader && index == hashCount + filterCount + peerHeader + peerCount + previewHeader + previewCount) {
+			return filteredSectionHeaderText(4);
 		}
-		return FakeRowAccessibilityName(_searchResults[index - hashCount - filterCount - peerCount - previewCount].get());
+		return FakeRowAccessibilityName(_searchResults[index - hashCount - filterCount - peerHeader - peerCount - previewHeader - previewCount - searchHeader].get());
 	}
 	if (index < 0 || index >= _shownList->size()) {
 		return {};
@@ -5896,26 +6107,53 @@ QAccessible::State InnerWidget::accessibilityChildState(int index) const {
 	if (_state == WidgetState::Filtered) {
 		const auto hashCount = int(_hashtagResults.size());
 		const auto filterCount = int(_filterResults.size());
+		const auto peerHeader = !_peerSearchResults.empty() ? 1 : 0;
 		const auto peerCount = int(_peerSearchResults.size());
+		const auto previewHeader = !_previewResults.empty() ? 1 : 0;
 		const auto previewCount = int(_previewResults.size());
+		const auto searchHeader = !_searchResults.empty() ? 1 : 0;
 		const auto searchCount = int(_searchResults.size());
-		const auto total = hashCount + filterCount + peerCount + previewCount + searchCount;
+		const auto total = hashCount + filterCount + peerHeader + peerCount + previewHeader + previewCount + searchHeader + searchCount;
 		if (index < 0 || index >= total) {
+			return state;
+		}
+		const auto peerHeaderIdx = hashCount + filterCount;
+		const auto previewHeaderIdx = peerHeaderIdx + peerHeader + peerCount;
+		const auto searchHeaderIdx = previewHeaderIdx + previewHeader + previewCount;
+		const auto isHeader = (peerHeader && index == peerHeaderIdx)
+			|| (previewHeader && index == previewHeaderIdx)
+			|| (searchHeader && index == searchHeaderIdx);
+		if (isHeader) {
+			if (Ui::ScreenReaderModeActive()) {
+				state.focusable = true;
+				const auto headerSection = (peerHeader && index == peerHeaderIdx)
+					? 2
+					: (previewHeader && index == previewHeaderIdx)
+					? 3
+					: 4;
+				if (_srHeaderSelected == headerSection) {
+					state.focused = true;
+					state.active = true;
+				}
+			}
 			return state;
 		}
 		state.selectable = true;
 		if (Ui::ScreenReaderModeActive()) {
 			state.focusable = true;
 		}
-		const auto selected = (index < hashCount)
-			? (_hashtagSelected == index)
-			: (index < hashCount + filterCount)
-			? (_filteredSelected == index - hashCount)
-			: (index < hashCount + filterCount + peerCount)
-			? (_peerSearchSelected == index - hashCount - filterCount)
-			: (index < hashCount + filterCount + peerCount + previewCount)
-			? (_previewSelected == index - hashCount - filterCount - peerCount)
-			: (_searchedSelected == index - hashCount - filterCount - peerCount - previewCount);
+		bool selected = false;
+		if (index < hashCount) {
+			selected = (_hashtagSelected == index);
+		} else if (index < hashCount + filterCount) {
+			selected = (_filteredSelected == index - hashCount);
+		} else if (index < peerHeaderIdx + peerHeader + peerCount) {
+			selected = (_peerSearchSelected == index - peerHeaderIdx - peerHeader);
+		} else if (index < previewHeaderIdx + previewHeader + previewCount) {
+			selected = (_previewSelected == index - previewHeaderIdx - previewHeader);
+		} else {
+			selected = (_searchedSelected == index - searchHeaderIdx - searchHeader);
+		}
 		if (selected) {
 			state.selected = true;
 			state.active = true;
@@ -5952,26 +6190,38 @@ QRect InnerWidget::accessibilityChildRect(int index) const {
 	if (_state == WidgetState::Filtered) {
 		const auto hashCount = int(_hashtagResults.size());
 		const auto filterCount = int(_filterResults.size());
+		const auto peerHeader = !_peerSearchResults.empty() ? 1 : 0;
 		const auto peerCount = int(_peerSearchResults.size());
+		const auto previewHeader = !_previewResults.empty() ? 1 : 0;
 		const auto previewCount = int(_previewResults.size());
+		const auto searchHeader = !_searchResults.empty() ? 1 : 0;
 		const auto searchCount = int(_searchResults.size());
-		const auto total = hashCount + filterCount + peerCount + previewCount + searchCount;
+		const auto total = hashCount + filterCount + peerHeader + peerCount + previewHeader + previewCount + searchHeader + searchCount;
 		if (index < 0 || index >= total) {
 			return QRect();
 		}
+		const auto peerHeaderIdx = hashCount + filterCount;
+		const auto previewHeaderIdx = peerHeaderIdx + peerHeader + peerCount;
+		const auto searchHeaderIdx = previewHeaderIdx + previewHeader + previewCount;
 		if (index < hashCount) {
 			return QRect(0, index * st::mentionHeight, width(), st::mentionHeight);
 		} else if (index < hashCount + filterCount) {
 			const auto &result = _filterResults[index - hashCount];
 			return QRect(0, filteredOffset() + result.top, width(), result.row->height());
-		} else if (index < hashCount + filterCount + peerCount) {
-			const auto i = index - hashCount - filterCount;
+		} else if (peerHeader && index == peerHeaderIdx) {
+			return QRect(0, peerSearchOffset() - st::searchedBarHeight, width(), st::searchedBarHeight);
+		} else if (index < previewHeaderIdx) {
+			const auto i = index - peerHeaderIdx - peerHeader;
 			return QRect(0, peerSearchOffset() + i * st::dialogsRowHeight, width(), st::dialogsRowHeight);
-		} else if (index < hashCount + filterCount + peerCount + previewCount) {
-			const auto i = index - hashCount - filterCount - peerCount;
+		} else if (previewHeader && index == previewHeaderIdx) {
+			return QRect(0, previewOffset() - st::searchedBarHeight, width(), st::searchedBarHeight);
+		} else if (index < searchHeaderIdx) {
+			const auto i = index - previewHeaderIdx - previewHeader;
 			return QRect(0, previewOffset() + i * _st->height, width(), _st->height);
+		} else if (searchHeader && index == searchHeaderIdx) {
+			return QRect(0, searchedOffset() - st::searchedBarHeight, width(), st::searchedBarHeight);
 		} else {
-			const auto i = index - hashCount - filterCount - peerCount - previewCount;
+			const auto i = index - searchHeaderIdx - searchHeader;
 			return QRect(0, searchedOffset() + i * _st->height, width(), _st->height);
 		}
 	}

@@ -497,6 +497,7 @@ private:
 	Row *shownRowByKey(Key key);
 	[[nodiscard]] const std::vector<SubItem> &activeSubItems(int row) const;
 	void announceSelectedFocus();
+	[[nodiscard]] QString filteredSectionHeaderText(int section) const;
 	void clearSearchResults(bool alsoPeerSearchResults = true);
 	void clearPeerSearchResults();
 	void clearPreviewResults();
@@ -641,6 +642,8 @@ private:
 	int _searchedMigratedCount = 0;
 	int _searchedSelected = -1;
 	int _searchedPressed = -1;
+
+	int _srHeaderSelected = -1;
 
 	WidgetState _state = WidgetState::Default;
 
