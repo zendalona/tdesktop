@@ -243,6 +243,58 @@ QString RowAccessibilityName(
 	return parts.join(u", "_q);
 }
 
+QString FakeRowAccessibilityName(not_null<const FakeRow*> row) {
+	const auto item = row->item();
+	const auto history = item->history();
+	const auto peer = history->peer;
+
+	QStringList parts;
+	parts << peer->name();
+
+	if (const auto from = item->from()) {
+		if (from != peer && !item->out()) {
+			parts << from->shortName();
+		}
+	}
+
+	auto messageText = item->notificationText().text;
+	if (!messageText.isEmpty()) {
+		constexpr auto kMaxMessageLength = 100;
+		if (messageText.size() > kMaxMessageLength) {
+			messageText = messageText.left(kMaxMessageLength) + u"..."_q;
+		}
+		parts << messageText;
+	}
+
+	const auto dateTime = ItemDateTime(item);
+	if (dateTime.isValid()) {
+		const auto now = QDateTime::currentDateTime();
+		if (dateTime.date() == now.date()) {
+			parts << (tr::lng_schedule_at(tr::now)
+				+ u" "_q
+				+ QLocale().toString(
+					dateTime.time(),
+					QLocale::ShortFormat));
+		} else {
+			parts << Ui::FormatDateTime(dateTime);
+		}
+	}
+
+	return parts.join(u", "_q);
+}
+
+QString PeerAccessibilityName(not_null<PeerData*> peer) {
+	QStringList parts;
+
+	const auto type = ChatTypeString(peer);
+	if (!type.isEmpty()) {
+		parts << type;
+	}
+	parts << peer->name();
+
+	return parts.join(u", "_q);
+}
+
 QString SubItemLabel(SubItem item) {
 	switch (item) {
 	case SubItem::Type: return tr::lng_sr_chat_column_type(tr::now);

@@ -9,9 +9,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "dialogs/dialogs_key.h"
 
+class PeerData;
+
 namespace Dialogs {
 
 class Row;
+class FakeRow;
 
 enum class SubItem : int {
 	Type,
@@ -44,6 +47,10 @@ enum class SubItem : int {
 [[nodiscard]] QString RowAccessibilityName(
 	not_null<const Row*> row,
 	FilterId filterId);
+[[nodiscard]] QString FakeRowAccessibilityName(
+	not_null<const FakeRow*> row);
+[[nodiscard]] QString PeerAccessibilityName(
+	not_null<PeerData*> peer);
 [[nodiscard]] QString SubItemLabel(SubItem item);
 [[nodiscard]] QString SubItemValue(
 	not_null<const Row*> row,
