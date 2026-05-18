@@ -407,7 +407,7 @@ TG_FORCE_INLINE uint16 ReadOneSample(uchar data) {
 }
 
 TG_FORCE_INLINE uint16 ReadOneSample(int16 data) {
-	return qAbs(data);
+	return qAbs(int(data));
 }
 
 template <typename SampleType, typename Callback>
